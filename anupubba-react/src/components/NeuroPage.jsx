@@ -101,8 +101,34 @@ const NeuroPage = () => {
         ))
       )}
 
-      <button onClick={() => navigate('/dashboard')} style={{ marginTop: '20px', padding: '10px 20px', background: '#888', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
-        Volver
+      {/* 🔥 Botón "Volver al menú" (estilo unificado) */}
+      <button
+        onClick={() => navigate('/dashboard')}
+        style={{
+          marginTop: '24px',
+          padding: '12px',
+          background: '#e2e8f0',
+          color: '#4a5568',
+          border: 'none',
+          borderRadius: '12px',
+          cursor: 'pointer',
+          width: '100%',
+          fontSize: '16px',
+          fontWeight: '600',
+          transition: 'all 0.2s',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = '#cbd5e0';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = '#e2e8f0';
+        }}
+      >
+        ← Volver al menú
       </button>
     </div>
   );

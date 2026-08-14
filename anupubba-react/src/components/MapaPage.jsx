@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useNavigate } from 'react-router-dom';
@@ -6,6 +6,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
+// Corregir iconos de Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
@@ -24,14 +25,22 @@ const MapCenter = ({ center }) => {
 const MapaPage = () => {
   const [lugares, setLugares] = useState([]);
   const [filteredLugares, setFilteredLugares] = useState([]);
-  const [categoria, setCategoria] = useState('todos');
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('todos');
   const [busqueda, setBusqueda] = useState('');
   const [distancia, setDistancia] = useState('');
   const [userLocation, setUserLocation] = useState(null);
-  const [filtroDeporte, setFiltroDeporte] = useState('todos');
-  const [deportesDisponibles, setDeportesDisponibles] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  const categorias = [
+    { id: 'todos', label: '📌 Todos', color: '#6c757d' },
+    { id: 'yoga', label: '🧘 Yoga', color: '#6C63FF' },
+    { id: 'psicologia', label: '🧠 Psicología', color: '#8b5cf6' },
+    { id: 'deportes', label: '🏃 Deportes', color: '#f97316' },
+    { id: 'meditacion', label: '🪷 Meditación', color: '#6bcb77' },
+    { id: 'espiritual', label: '✨ Espiritual', color: '#6C63FF' },
+    { id: 'otros', label: '📌 Otros', color: '#6c757d' },
+  ];
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -47,11 +56,21 @@ const MapaPage = () => {
       try {
         const querySnapshot = await getDocs(collection(db, 'lugares'));
         const data = [];
-        querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
+        querySnapshot.forEach((doc) => {
+          const lugarData = doc.data();
+          // Verificar que tenga coordenadas válidas
+          const lat = parseFloat(lugarData.lat);
+          const lng = parseFloat(lugarData.lng);
+          if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+            data.push({ id: doc.id, ...lugarData, lat, lng });
+          } else {
+            console.warn('Lugar con coordenadas inválidas:', doc.id, lugarData);
+          }
+        });
         setLugares(data);
         setLoading(false);
       } catch (err) {
-        console.error(err);
+        console.error('Error al cargar lugares:', err);
         setLoading(false);
       }
     };
@@ -68,12 +87,11 @@ const MapaPage = () => {
 
   useEffect(() => {
     let resultado = lugares;
-    if (categoria !== 'todos') resultado = resultado.filter((l) => l.categoria === categoria);
-    if (categoria === 'deportes' && filtroDeporte !== 'todos') {
-      resultado = resultado.filter((l) =>
-        l.etiquetas && l.etiquetas.some(tag => tag.toLowerCase() === filtroDeporte.toLowerCase())
-      );
+
+    if (categoriaSeleccionada !== 'todos') {
+      resultado = resultado.filter((l) => l.categoria === categoriaSeleccionada);
     }
+
     if (busqueda.trim() !== '') {
       const text = busqueda.toLowerCase();
       resultado = resultado.filter((l) =>
@@ -82,69 +100,128 @@ const MapaPage = () => {
         (l.etiquetas?.some(tag => tag.toLowerCase().includes(text)))
       );
     }
+
     if (userLocation && distancia && parseFloat(distancia) > 0) {
       const maxDist = parseFloat(distancia);
       resultado = resultado.filter((l) =>
         getDistance(userLocation.lat, userLocation.lng, l.lat, l.lng) <= maxDist
       );
     }
+
     setFilteredLugares(resultado);
-  }, [lugares, categoria, busqueda, distancia, userLocation, filtroDeporte]);
+  }, [lugares, categoriaSeleccionada, busqueda, distancia, userLocation]);
 
-  useEffect(() => {
-    const deportes = new Set();
-    lugares.forEach((l) => {
-      if (l.categoria === 'deportes' && l.etiquetas) {
-        l.etiquetas.forEach(tag => deportes.add(tag));
-      }
-    });
-    setDeportesDisponibles(Array.from(deportes));
-  }, [lugares]);
+  if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Cargando mapa...</div>;
 
-  if (loading) return <div>Cargando mapa...</div>;
+  const buttonStyle = (categoriaId) => ({
+    padding: '8px 16px',
+    border: '2px solid #ddd',
+    borderRadius: '20px',
+    background: categoriaSeleccionada === categoriaId ? '#f0eeff' : 'white',
+    borderColor: categoriaSeleccionada === categoriaId ? '#6C63FF' : '#ddd',
+    color: categoriaSeleccionada === categoriaId ? '#6C63FF' : '#555',
+    fontWeight: categoriaSeleccionada === categoriaId ? '600' : '400',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    fontSize: '14px',
+    whiteSpace: 'nowrap',
+  });
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '10px', background: '#f5f5f5' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
-          <button onClick={() => navigate('/dashboard')}>Volver</button>
-          <button onClick={() => navigate('/agregar-lugar')}>Agregar lugar</button>
+      <div style={{ padding: '12px 16px', background: 'white', borderBottom: '1px solid #eee', flexShrink: 0 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+          <button
+            onClick={() => navigate('/dashboard')}
+            style={{
+              padding: '8px 16px',
+              background: '#e2e8f0',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '600',
+              color: '#4a5568',
+            }}
+          >
+            ← Volver
+          </button>
+          <button
+            onClick={() => navigate('/agregar-lugar')}
+            style={{
+              padding: '8px 16px',
+              background: '#6C63FF',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '600',
+            }}
+          >
+            + Agregar lugar
+          </button>
+          <div style={{ flex: 1 }} />
+          <span style={{ fontSize: '14px', color: '#888', alignSelf: 'center' }}>
+            {filteredLugares.length} lugares
+          </span>
+        </div>
 
-          <select value={categoria} onChange={(e) => setCategoria(e.target.value)}>
-            <option value="todos">Todas las categorías</option>
-            <option value="yoga">Yoga</option>
-            <option value="psicologia">Psicología</option>
-            <option value="deportes">Deportes</option>
-            <option value="meditacion">Meditación</option>
-            <option value="espiritual">Espiritual</option>
-          </select>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+          {categorias.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setCategoriaSeleccionada(cat.id)}
+              style={buttonStyle(cat.id)}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
 
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
           <input
             type="text"
-            placeholder="Buscar..."
+            placeholder="🔍 Buscar..."
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
+            style={{
+              flex: 1,
+              minWidth: '150px',
+              padding: '8px 14px',
+              border: '2px solid #edf2f7',
+              borderRadius: '20px',
+              fontSize: '14px',
+            }}
           />
-
           <input
             type="number"
-            placeholder="Distancia (km)"
+            placeholder="📏 Distancia (km)"
             value={distancia}
             onChange={(e) => setDistancia(e.target.value)}
-            style={{ width: '100px' }}
+            style={{
+              width: '130px',
+              padding: '8px 14px',
+              border: '2px solid #edf2f7',
+              borderRadius: '20px',
+              fontSize: '14px',
+            }}
           />
-
-          {categoria === 'deportes' && deportesDisponibles.length > 0 && (
-            <select value={filtroDeporte} onChange={(e) => setFiltroDeporte(e.target.value)}>
-              <option value="todos">Todos los deportes</option>
-              {deportesDisponibles.map(deporte => (
-                <option key={deporte} value={deporte}>{deporte}</option>
-              ))}
-            </select>
+          {distancia && (
+            <button
+              onClick={() => setDistancia('')}
+              style={{
+                padding: '4px 10px',
+                background: 'transparent',
+                border: 'none',
+                color: '#e53e3e',
+                cursor: 'pointer',
+                fontSize: '18px',
+              }}
+            >
+              ✕
+            </button>
           )}
-        </div>
-        <div style={{ marginTop: '5px', fontSize: '14px', color: '#555' }}>
-          Mostrando {filteredLugares.length} lugares
         </div>
       </div>
 
@@ -154,21 +231,26 @@ const MapaPage = () => {
           zoom={13}
           style={{ height: '100%', width: '100%' }}
         >
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap' />
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          />
           {userLocation && <MapCenter center={[userLocation.lat, userLocation.lng]} />}
           {filteredLugares.map((lugar) => (
             <Marker key={lugar.id} position={[lugar.lat, lugar.lng]}>
               <Popup>
                 <strong>{lugar.nombre}</strong><br />
-                {lugar.descripcion && `${lugar.descripcion.substring(0, 100)}...`}<br />
-                <strong>Dirección:</strong> {lugar.direccion}<br />
-                {lugar.telefono && <><strong>Teléfono:</strong> {lugar.telefono}<br /></>}
-                {lugar.precio && <><strong>Precio:</strong> {lugar.precio}<br /></>}
-                {lugar.horario && <><strong>Horario:</strong> {lugar.horario}<br /></>}
-                {lugar.etiquetas && lugar.etiquetas.length > 0 && (
-                  <><strong>Etiquetas:</strong> {lugar.etiquetas.join(', ')}<br /></>
+                {lugar.descripcion && `${lugar.descripcion.substring(0, 80)}...`}<br />
+                <strong>📍 Dirección:</strong> {lugar.direccion}<br />
+                {lugar.telefono && <><strong>📞 Teléfono:</strong> {lugar.telefono}<br /></>}
+                {lugar.precio && <><strong>💰 Precio:</strong> {lugar.precio}<br /></>}
+                {lugar.horario && <><strong>🕐 Horario:</strong> {lugar.horario}<br /></>}
+                {lugar.etiquetas?.length > 0 && (
+                  <><strong>🏷️ Etiquetas:</strong> {lugar.etiquetas.join(', ')}<br /></>
                 )}
-                <button onClick={() => navigate(`/resenas/${lugar.id}`)}>Ver reseñas</button>
+                <span style={{ fontSize: '12px', color: '#888' }}>
+                  📂 {categorias.find(c => c.id === lugar.categoria)?.label || lugar.categoria}
+                </span>
               </Popup>
             </Marker>
           ))}

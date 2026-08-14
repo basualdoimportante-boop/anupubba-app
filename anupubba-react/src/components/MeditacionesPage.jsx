@@ -3,7 +3,6 @@ import { collection, getDocs, addDoc, query, where } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { actualizarRacha, completarMision } from '../services/gamificationService';
 
 const MeditacionesPage = () => {
   const [meditaciones, setMeditaciones] = useState([]);
@@ -59,26 +58,6 @@ const MeditacionesPage = () => {
         userId: currentUser.uid,
         fecha: new Date().toISOString(),
       });
-
-      // 🏅 ACTUALIZAR RACHA Y MISIONES
-      await actualizarRacha(currentUser.uid, 'meditacion');
-
-      // Verificar si ya tiene 3 días seguidos (esto se maneja desde el servicio)
-      // Pero podemos disparar la misión manualmente si la racha es >= 3
-      const q = query(
-        collection(db, 'rachas'),
-        where('userId', '==', currentUser.uid)
-      );
-      const snapshot = await getDocs(q);
-      let rachaDias = 0;
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        if (data.meditacion) rachaDias = data.meditacion.diasConsecutivos || 0;
-      });
-      if (rachaDias >= 3) {
-        await completarMision(currentUser.uid, 'meditacion_3_dias');
-      }
-
       alert('🧘 ¡Meditación registrada! Sigue así.');
       window.location.reload();
     } catch (err) {
@@ -121,8 +100,34 @@ const MeditacionesPage = () => {
         ))}
       </div>
 
-      <button onClick={() => navigate('/dashboard')} style={{ marginTop: '20px', padding: '10px 20px', background: '#888', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
-        Volver
+      {/* 🔥 Botón "Volver al menú" */}
+      <button
+        onClick={() => navigate('/dashboard')}
+        style={{
+          marginTop: '24px',
+          padding: '12px',
+          background: '#e2e8f0',
+          color: '#4a5568',
+          border: 'none',
+          borderRadius: '12px',
+          cursor: 'pointer',
+          width: '100%',
+          fontSize: '16px',
+          fontWeight: '600',
+          transition: 'all 0.2s',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = '#cbd5e0';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = '#e2e8f0';
+        }}
+      >
+        ← Volver al menú
       </button>
     </div>
   );

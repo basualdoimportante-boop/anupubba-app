@@ -14,7 +14,6 @@ const DeportesPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 1. Leer módulos (público)
         const modulesSnap = await getDocs(collection(db, 'deportes'));
         const modulesData = [];
         modulesSnap.forEach((doc) => {
@@ -23,7 +22,6 @@ const DeportesPage = () => {
         modulesData.sort((a, b) => a.order - b.order);
         setModules(modulesData);
 
-        // 2. Leer progreso solo si el usuario está autenticado
         if (currentUser) {
           try {
             const progressQuery = query(
@@ -38,8 +36,7 @@ const DeportesPage = () => {
             });
             setProgress(progressData);
           } catch (err) {
-            console.warn('No se pudo cargar el progreso (permisos insuficientes):', err);
-            // Si falla, dejamos progress vacío
+            console.warn('No se pudo cargar el progreso:', err);
           }
         }
         setLoading(false);
@@ -64,55 +61,81 @@ const DeportesPage = () => {
     <div style={{ padding: '20px', maxWidth: '900px', margin: '0 auto' }}>
       <h2 style={{ color: '#6C63FF' }}>🏃 Deportes</h2>
       <p>Conoce los fundamentos del entrenamiento y la actividad física.</p>
-      <div style={{ marginTop: '20px' }}>
-        {modules.length === 0 ? (
-          <p>No hay módulos disponibles.</p>
-        ) : (
-          modules.map((mod, index) => {
-            const locked = isChapterLocked(index);
-            const prog = progress[mod.id];
-            const isCompleted = prog && prog.passed;
-            return (
-              <div
-                key={mod.id}
-                style={{
-                  border: '1px solid #ddd',
-                  borderRadius: '8px',
-                  padding: '16px',
-                  marginBottom: '12px',
-                  background: locked ? '#f5f5f5' : 'white',
-                  opacity: locked ? 0.6 : 1,
-                }}
-              >
-                <h3>{mod.title}</h3>
-                <p>{mod.description}</p>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <span style={{ fontSize: '14px', color: '#666' }}>
-                    {isCompleted ? '✅ Completado' : locked ? '🔒 Bloqueado' : '📖 Disponible'}
-                  </span>
-                  {!locked && (
-                    <button
-                      onClick={() => navigate(`/deportes/desafio/${mod.id}`)}
-                      style={{
-                        padding: '8px 16px',
-                        background: '#6C63FF',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {isCompleted ? 'Repetir desafío' : 'Comenzar'}
-                    </button>
-                  )}
-                </div>
+
+      {modules.length === 0 ? (
+        <p>No hay módulos disponibles.</p>
+      ) : (
+        modules.map((mod, index) => {
+          const locked = isChapterLocked(index);
+          const prog = progress[mod.id];
+          const isCompleted = prog && prog.passed;
+          return (
+            <div
+              key={mod.id}
+              style={{
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                padding: '16px',
+                marginBottom: '12px',
+                background: locked ? '#f5f5f5' : 'white',
+                opacity: locked ? 0.6 : 1,
+              }}
+            >
+              <h3>{mod.title}</h3>
+              <p>{mod.description}</p>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <span style={{ fontSize: '14px', color: '#666' }}>
+                  {isCompleted ? '✅ Completado' : locked ? '🔒 Bloqueado' : '📖 Disponible'}
+                </span>
+                {!locked && (
+                  <button
+                    onClick={() => navigate(`/deportes/desafio/${mod.id}`)}
+                    style={{
+                      padding: '8px 16px',
+                      background: '#6C63FF',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {isCompleted ? 'Repetir desafío' : 'Comenzar'}
+                  </button>
+                )}
               </div>
-            );
-          })
-        )}
-      </div>
-      <button onClick={() => navigate('/dashboard')} style={{ marginTop: '20px', padding: '10px 20px', background: '#888', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
-        Volver
+            </div>
+          );
+        })
+      )}
+
+      {/* 🔥 Botón "Volver al menú" */}
+      <button
+        onClick={() => navigate('/dashboard')}
+        style={{
+          marginTop: '24px',
+          padding: '12px',
+          background: '#e2e8f0',
+          color: '#4a5568',
+          border: 'none',
+          borderRadius: '12px',
+          cursor: 'pointer',
+          width: '100%',
+          fontSize: '16px',
+          fontWeight: '600',
+          transition: 'all 0.2s',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = '#cbd5e0';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = '#e2e8f0';
+        }}
+      >
+        ← Volver al menú
       </button>
     </div>
   );

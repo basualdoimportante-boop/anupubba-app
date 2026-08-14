@@ -55,6 +55,7 @@ const Dashboard = () => {
     fontWeight: '600',
     cursor: 'pointer',
     boxShadow: '0 4px 12px rgba(108, 99, 255, 0.3)',
+    transition: 'all 0.2s',
     width: '100%',
     textAlign: 'left',
     display: 'flex',
@@ -62,13 +63,14 @@ const Dashboard = () => {
     gap: '12px',
   };
 
-  if (loadingPref) return <div>Cargando...</div>;
+  if (loadingPref) return <div style={{ padding: '40px', textAlign: 'center' }}>Cargando...</div>;
 
   return (
     <div style={{ maxWidth: '500px', margin: '40px auto', padding: '20px' }}>
-      <h1 style={{ color: '#6C63FF' }}>🌅 Anupubba</h1>
-      <p>Bienvenido, {currentUser?.email}</p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '20px' }}>
+      <h1 style={{ color: '#6C63FF', fontSize: '28px', marginBottom: '8px' }}>🌅 Anupubba</h1>
+      <p style={{ color: '#555', marginBottom: '24px' }}>Bienvenido, {currentUser?.email}</p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <button onClick={() => navigate('/tests')} style={buttonStyle}>📋 Tests</button>
         <button onClick={() => navigate('/neuro')} style={buttonStyle}>🧠 Neurociencias</button>
         <button onClick={() => navigate('/deportes')} style={buttonStyle}>🏃 Deportes</button>
@@ -76,10 +78,33 @@ const Dashboard = () => {
         <button onClick={() => navigate('/meditaciones')} style={buttonStyle}>🪷 Meditaciones</button>
         <button onClick={() => navigate('/juegos')} style={buttonStyle}>🎮 Juegos</button>
         <button onClick={() => navigate('/mapa')} style={buttonStyle}>🗺️ Mapa Consciente</button>
-        <button onClick={toggleRecordatorios} style={{ ...buttonStyle, background: recordatoriosActivos ? '#28a745' : '#6c757d' }}>
+
+        <button
+          onClick={toggleRecordatorios}
+          style={{
+            ...buttonStyle,
+            background: recordatoriosActivos ? '#28a745' : '#6c757d',
+            boxShadow: recordatoriosActivos ? '0 4px 12px rgba(40, 167, 69, 0.3)' : 'none',
+          }}
+        >
           {recordatoriosActivos ? '✅ Recordatorios activados' : '🔕 Recordatorios desactivados'}
         </button>
-        <button onClick={handleLogout} style={{ ...buttonStyle, background: '#e53e3e' }}>🚪 Cerrar sesión</button>
+
+        {/* 👇 BOTÓN ACERCA DE */}
+        <button onClick={() => navigate('/about')} style={buttonStyle}>
+          🌅 Acerca de Anupubba
+        </button>
+
+        <button
+          onClick={handleLogout}
+          style={{
+            ...buttonStyle,
+            background: '#e53e3e',
+            boxShadow: '0 4px 12px rgba(229, 62, 62, 0.3)',
+          }}
+        >
+          🚪 Cerrar sesión
+        </button>
       </div>
     </div>
   );

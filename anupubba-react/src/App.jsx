@@ -24,6 +24,7 @@ import MapaPage from './components/MapaPage';
 import AgregarLugar from './components/AgregarLugar';
 import Resenas from './components/Resenas';
 import GamesPage from './components/GamesPage';
+import AboutPage from './components/AboutPage'; // 👈 NUEVO
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
         <Routes>
           {/* Rutas públicas */}
           <Route path="/" element={<Onboarding />} />
+          <Route path="/about" element={<AboutPage />} /> {/* 👈 NUEVA RUTA */}
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -40,23 +42,18 @@ function App() {
           <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
           <Route path="/profile" element={<PrivateRoute><UserProfile /></PrivateRoute>} />
           
-          {/* Tests */}
           <Route path="/tests" element={<PrivateRoute><TestsPage /></PrivateRoute>} />
           <Route path="/tests/:testId" element={<PrivateRoute><Tests /></PrivateRoute>} />
-          
           <Route path="/history" element={<PrivateRoute><HistoryPage /></PrivateRoute>} />
           
-          {/* Neurociencias */}
           <Route path="/neuro" element={<PrivateRoute><NeuroPage /></PrivateRoute>} />
           <Route path="/neuro/desafio/:chapterId" element={<PrivateRoute><NeuroDesafioPage /></PrivateRoute>} />
           <Route path="/trivia-neuro" element={<PrivateRoute><NeuroTriviaGeneral /></PrivateRoute>} />
           
-          {/* Deportes */}
           <Route path="/deportes" element={<PrivateRoute><DeportesPage /></PrivateRoute>} />
           <Route path="/deportes/desafio/:chapterId" element={<PrivateRoute><DeportesTriviaCapitulo /></PrivateRoute>} />
           <Route path="/trivia-deportes" element={<PrivateRoute><DeportesTrivia /></PrivateRoute>} />
           
-          {/* Caminos Espirituales */}
           <Route path="/caminos" element={<PrivateRoute><SpiritualPage /></PrivateRoute>} />
           <Route path="/caminos/desafio/:chapterId" element={<PrivateRoute><SpiritualDesafioPage /></PrivateRoute>} />
           

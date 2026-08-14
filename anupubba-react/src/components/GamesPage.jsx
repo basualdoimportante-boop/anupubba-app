@@ -6,8 +6,9 @@ const GamesPage = () => {
 
   return (
     <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
-      <h2 style={{ color: '#6C63FF' }}>🎮 Juegos</h2>
-      <p style={{ color: '#555' }}>Pon a prueba tus conocimientos con estas trivias.</p>
+      <h2>🎮 Juegos</h2>
+      <p>Pon a prueba tus conocimientos con estas trivias.</p>
+
       <div style={{ marginTop: '20px' }}>
         <button
           onClick={() => navigate('/trivia-neuro')}
@@ -19,15 +20,10 @@ const GamesPage = () => {
             background: '#6C63FF',
             color: 'white',
             border: 'none',
-            borderRadius: '12px',
+            borderRadius: '8px',
             fontSize: '16px',
             cursor: 'pointer',
-            fontWeight: '600',
-            boxShadow: '0 2px 8px rgba(108, 99, 255, 0.3)',
-            transition: 'all 0.2s',
           }}
-          onMouseEnter={(e) => e.target.style.transform = 'scale(1.02)'}
-          onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
         >
           🧠 Trivia de Neurociencias
         </button>
@@ -41,15 +37,10 @@ const GamesPage = () => {
             background: '#6C63FF',
             color: 'white',
             border: 'none',
-            borderRadius: '12px',
+            borderRadius: '8px',
             fontSize: '16px',
             cursor: 'pointer',
-            fontWeight: '600',
-            boxShadow: '0 2px 8px rgba(108, 99, 255, 0.3)',
-            transition: 'all 0.2s',
           }}
-          onMouseEnter={(e) => e.target.style.transform = 'scale(1.02)'}
-          onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
         >
           🏃 Trivia de Deportes
         </button>
@@ -62,33 +53,43 @@ const GamesPage = () => {
             background: '#6C63FF',
             color: 'white',
             border: 'none',
-            borderRadius: '12px',
+            borderRadius: '8px',
             fontSize: '16px',
             cursor: 'pointer',
-            fontWeight: '600',
-            boxShadow: '0 2px 8px rgba(108, 99, 255, 0.3)',
-            transition: 'all 0.2s',
           }}
-          onMouseEnter={(e) => e.target.style.transform = 'scale(1.02)'}
-          onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
         >
           🕉️ Trivia de Caminos Espirituales
         </button>
       </div>
+
+      {/* 🔥 Botón "Volver al menú" */}
       <button
         onClick={() => navigate('/dashboard')}
         style={{
-          marginTop: '20px',
-          padding: '10px 20px',
-          background: 'transparent',
-          color: '#6C63FF',
-          border: '2px solid #6C63FF',
-          borderRadius: '8px',
+          marginTop: '24px',
+          padding: '12px',
+          background: '#e2e8f0',
+          color: '#4a5568',
+          border: 'none',
+          borderRadius: '12px',
           cursor: 'pointer',
+          width: '100%',
+          fontSize: '16px',
           fontWeight: '600',
+          transition: 'all 0.2s',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = '#cbd5e0';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = '#e2e8f0';
         }}
       >
-        ← Volver
+        ← Volver al menú
       </button>
     </div>
   );

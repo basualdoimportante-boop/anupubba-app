@@ -3,7 +3,6 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { actualizarRacha, completarMision } from '../services/gamificationService';
 
 const SpiritualPage = () => {
   const [modules, setModules] = useState([]);
@@ -17,26 +16,32 @@ const SpiritualPage = () => {
       try {
         const modulesSnap = await getDocs(collection(db, 'caminos'));
         const modulesData = [];
-        modulesSnap.forEach((doc) => modulesData.push({ id: doc.id, ...doc.data() }));
+        modulesSnap.forEach((doc) => {
+          modulesData.push({ id: doc.id, ...doc.data() });
+        });
         modulesData.sort((a, b) => a.order - b.order);
         setModules(modulesData);
 
         if (currentUser) {
-          const progressQuery = query(
-            collection(db, 'caminosProgress'),
-            where('userId', '==', currentUser.uid)
-          );
-          const progressSnap = await getDocs(progressQuery);
-          const progressData = {};
-          progressSnap.forEach((doc) => {
-            const data = doc.data();
-            progressData[data.chapterId] = data;
-          });
-          setProgress(progressData);
+          try {
+            const progressQuery = query(
+              collection(db, 'caminosProgress'),
+              where('userId', '==', currentUser.uid)
+            );
+            const progressSnap = await getDocs(progressQuery);
+            const progressData = {};
+            progressSnap.forEach((doc) => {
+              const data = doc.data();
+              progressData[data.chapterId] = data;
+            });
+            setProgress(progressData);
+          } catch (err) {
+            console.warn('No se pudo cargar el progreso:', err);
+          }
         }
         setLoading(false);
       } catch (err) {
-        console.error(err);
+        console.error('Error al cargar módulos:', err);
         setLoading(false);
       }
     };
@@ -50,35 +55,21 @@ const SpiritualPage = () => {
     return !(prevProgress && prevProgress.passed);
   };
 
-  const handleModuloCompletado = async (moduloId) => {
-    if (!currentUser) return;
-    await actualizarRacha(currentUser.uid, 'aprendizaje');
-    const q = query(
-      collection(db, 'caminosProgress'),
-      where('userId', '==', currentUser.uid)
-    );
-    const snapshot = await getDocs(q);
-    const completados = snapshot.docs.filter(doc => doc.data().passed).length;
-    if (completados === 1) {
-      await completarMision(currentUser.uid, 'primer_modulo');
-    }
-    if (completados >= 3) {
-      await completarMision(currentUser.uid, 'tres_modulos');
-    }
-  };
-
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  if (loading) return <div>Cargando...</div>;
+  if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Cargando módulos...</div>;
 
   return (
-    <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
-      <h2>🕉️ Caminos Espirituales</h2>
+    <div style={{ padding: '20px', maxWidth: '900px', margin: '0 auto' }}>
+      <h2 style={{ color: '#6C63FF' }}>🕉️ Caminos Espirituales</h2>
       <p>Explora las tradiciones filosóficas y espirituales.</p>
-      <div style={{ marginTop: '20px' }}>
-        {modules.map((mod, index) => {
+
+      {modules.length === 0 ? (
+        <p>No hay módulos disponibles.</p>
+      ) : (
+        modules.map((mod, index) => {
           const locked = isChapterLocked(index);
           const prog = progress[mod.id];
           const isCompleted = prog && prog.passed;
@@ -118,11 +109,40 @@ const SpiritualPage = () => {
               </div>
             </div>
           );
-        })}
-      </div>
-      <button onClick={() => navigate('/dashboard')} style={{ marginTop: '20px', padding: '10px 20px', background: '#888', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
-        Volver
+        })
+      )}
+
+      {/* 🔥 Botón "Volver al menú" */}
+      <button
+        onClick={() => navigate('/dashboard')}
+        style={{
+          marginTop: '24px',
+          padding: '12px',
+          background: '#e2e8f0',
+          color: '#4a5568',
+          border: 'none',
+          borderRadius: '12px',
+          cursor: 'pointer',
+          width: '100%',
+          fontSize: '16px',
+          fontWeight: '600',
+          transition: 'all 0.2s',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = '#cbd5e0';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = '#e2e8f0';
+        }}
+      >
+        ← Volver al menú
       </button>
+
+      {/* Botón flotante para subir */}
       <button
         onClick={scrollToTop}
         style={{
