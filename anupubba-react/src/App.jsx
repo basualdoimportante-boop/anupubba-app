@@ -19,12 +19,13 @@ import DeportesTriviaCapitulo from './components/DeportesTriviaCapitulo';
 import DeportesTrivia from './components/DeportesTrivia';
 import SpiritualPage from './components/SpiritualPage';
 import SpiritualDesafioPage from './components/SpiritualDesafioPage';
+import SpiritualTriviaGeneral from './components/SpiritualTriviaGeneral'; // 👈 Importante
 import MeditacionesPage from './components/MeditacionesPage';
 import MapaPage from './components/MapaPage';
 import AgregarLugar from './components/AgregarLugar';
 import Resenas from './components/Resenas';
 import GamesPage from './components/GamesPage';
-import AboutPage from './components/AboutPage'; // 👈 NUEVO
+import AboutPage from './components/AboutPage';
 
 function App() {
   return (
@@ -33,7 +34,7 @@ function App() {
         <Routes>
           {/* Rutas públicas */}
           <Route path="/" element={<Onboarding />} />
-          <Route path="/about" element={<AboutPage />} /> {/* 👈 NUEVA RUTA */}
+          <Route path="/about" element={<AboutPage />} />
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -56,7 +57,8 @@ function App() {
           
           <Route path="/caminos" element={<PrivateRoute><SpiritualPage /></PrivateRoute>} />
           <Route path="/caminos/desafio/:chapterId" element={<PrivateRoute><SpiritualDesafioPage /></PrivateRoute>} />
-          
+          <Route path="/trivia-caminos" element={<PrivateRoute><SpiritualTriviaGeneral /></PrivateRoute>} /> {/* 👈 NUEVA */}
+
           <Route path="/meditaciones" element={<PrivateRoute><MeditacionesPage /></PrivateRoute>} />
           <Route path="/mapa" element={<PrivateRoute><MapaPage /></PrivateRoute>} />
           <Route path="/agregar-lugar" element={<PrivateRoute><AgregarLugar /></PrivateRoute>} />

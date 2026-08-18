@@ -1,25 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { theme } from '../theme';
+import Button from './Button';
 
 const NeuroPage = () => {
   const [modules, setModules] = useState([]);
+  const [progress, setProgress] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [permisosError, setPermisosError] = useState(false);
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchModules = async () => {
+    const fetchData = async () => {
       if (!currentUser) {
-        setError('Inicia sesión para ver los módulos.');
         setLoading(false);
         return;
       }
 
       try {
+        // 1. Módulos (siempre se cargan)
         const modulesSnap = await getDocs(collection(db, 'neuroModules'));
         const modulesData = [];
         modulesSnap.forEach((doc) => {
@@ -27,109 +30,115 @@ const NeuroPage = () => {
         });
         modulesData.sort((a, b) => a.order - b.order);
         setModules(modulesData);
+
+        // 2. Progreso (si falla, no interrumpe)
+        try {
+          const docRef = doc(db, 'neuroProgress', currentUser.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setProgress(docSnap.data());
+          } else {
+            setProgress(null);
+          }
+        } catch (err) {
+          console.warn('⚠️ No se pudo leer progreso (permisos o documento vacío):', err);
+          setPermisosError(true);
+          setProgress(null); // Asumimos que no hay progreso
+        }
         setLoading(false);
       } catch (err) {
-        console.error('Error al cargar módulos:', err);
-        setError('Error al cargar los módulos.');
+        console.error('❌ Error al cargar módulos:', err);
         setLoading(false);
       }
     };
-    fetchModules();
+    fetchData();
   }, [currentUser]);
 
-  if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Cargando módulos...</div>;
-  if (error) return <div style={{ padding: '40px', textAlign: 'center', color: 'red' }}>{error}</div>;
+  const isChapterLocked = (index) => {
+    if (index === 0) return false; // SIEMPRE DESBLOQUEADO
+    const prevChapterId = modules[index - 1]?.id;
+    if (!progress) return true; // Sin progreso, bloqueado
+    return !(progress[prevChapterId] && progress[prevChapterId].passed === true);
+  };
+
+  if (loading) {
+    return <div style={{ padding: theme.space[8], textAlign: 'center' }}>Cargando módulos...</div>;
+  }
+
+  const pageStyle = {
+    maxWidth: '900px',
+    margin: `${theme.space[8]} auto`,
+    padding: theme.space[4],
+  };
+
+  const titleStyle = {
+    color: theme.colors.textPrimary,
+    fontSize: theme.font.size.xxl,
+    fontWeight: theme.font.weight.emphasis,
+    marginBottom: theme.space[2],
+  };
 
   return (
-    <div style={{ padding: '20px', maxWidth: '900px', margin: '0 auto' }}>
-      <h2 style={{ color: '#6C63FF' }}>🧠 Neurociencias</h2>
-      <p>Descubre cómo funciona tu cerebro y cómo la meditación lo transforma.</p>
+    <div style={pageStyle}>
+      <h2 style={titleStyle}>🧠 Neurociencias</h2>
+      <p style={{ color: theme.colors.textSecondary, marginBottom: theme.space[6] }}>
+        Descubre cómo funciona tu cerebro y cómo la meditación lo transforma.
+      </p>
+
+      {permisosError && (
+        <div style={{ background: '#fff3cd', color: '#856404', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
+          ⚠️ No se pudo cargar tu progreso. El primer módulo está disponible; los demás se desbloquearán al aprobar el anterior.
+        </div>
+      )}
 
       {modules.length === 0 ? (
         <p>No hay módulos disponibles.</p>
       ) : (
-        modules.map((mod) => (
-          <div key={mod.id} style={{ background: 'white', borderRadius: '16px', padding: '24px', marginBottom: '24px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
-            <h3 style={{ color: '#6C63FF', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>{mod.icon}</span> {mod.title}
-            </h3>
-            <p style={{ color: '#555', fontStyle: 'italic' }}>{mod.description}</p>
-
-            {mod.summary && (
-              <div style={{ marginTop: '16px' }}>
-                <h4>📖 Resumen</h4>
-                <p>{mod.summary}</p>
-              </div>
-            )}
-
-            {mod.keyData && Array.isArray(mod.keyData) && mod.keyData.length > 0 && (
-              <div style={{ marginTop: '16px' }}>
-                <h4>🔑 Datos clave</h4>
-                <ul style={{ paddingLeft: '20px' }}>
-                  {mod.keyData.map((item, idx) => (
-                    <li key={idx} style={{ marginBottom: '8px' }}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {mod.practicalTips && (
-              <div style={{ marginTop: '16px', background: '#f0eeff', padding: '16px', borderRadius: '12px' }}>
-                <h4>💡 Consejo práctico</h4>
-                <p>{mod.practicalTips}</p>
-              </div>
-            )}
-
-            <button
-              onClick={() => navigate(`/neuro/desafio/${mod.id}`)}
+        modules.map((mod, index) => {
+          const locked = isChapterLocked(index);
+          const isCompleted = progress && progress[mod.id] && progress[mod.id].passed === true;
+          return (
+            <div
+              key={mod.id}
               style={{
-                marginTop: '20px',
-                padding: '12px 24px',
-                background: '#6C63FF',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '16px',
-                fontWeight: '600',
-                boxShadow: '0 4px 12px rgba(108, 99, 255, 0.3)',
+                background: theme.colors.surface,
+                borderRadius: theme.radius.card,
+                padding: theme.space[4],
+                marginBottom: theme.space[4],
+                boxShadow: theme.shadow.card,
+                opacity: locked ? 0.6 : 1,
               }}
             >
-              🧠 Comenzar desafío
-            </button>
-          </div>
-        ))
+              <h3 style={{ color: theme.colors.textPrimary, display: 'flex', alignItems: 'center', gap: theme.space[2] }}>
+                <span>{mod.icon}</span> {mod.title}
+              </h3>
+              <p style={{ color: theme.colors.textSecondary }}>{mod.description}</p>
+              {mod.summary && (
+                <div style={{ marginTop: theme.space[2], fontSize: theme.font.size.sm, color: theme.colors.textSecondary }}>
+                  <strong>Resumen:</strong> {mod.summary.substring(0, 150)}...
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: theme.space[3] }}>
+                <span style={{ fontSize: theme.font.size.sm, color: locked ? theme.colors.textSecondary : theme.colors.accentCalm }}>
+                  {isCompleted ? '✅ Completado' : locked ? '🔒 Bloqueado' : '📖 Disponible'}
+                </span>
+                {!locked && (
+                  <Button
+                    onClick={() => navigate(`/neuro/desafio/${mod.id}`)}
+                    style={{ width: 'auto' }}
+                  >
+                    {isCompleted ? 'Repetir desafío' : 'Comenzar'}
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
+        })
       )}
 
-      {/* 🔥 Botón "Volver al menú" (estilo unificado) */}
-      <button
-        onClick={() => navigate('/dashboard')}
-        style={{
-          marginTop: '24px',
-          padding: '12px',
-          background: '#e2e8f0',
-          color: '#4a5568',
-          border: 'none',
-          borderRadius: '12px',
-          cursor: 'pointer',
-          width: '100%',
-          fontSize: '16px',
-          fontWeight: '600',
-          transition: 'all 0.2s',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '8px',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = '#cbd5e0';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = '#e2e8f0';
-        }}
-      >
+      <Button variant="secondary" onClick={() => navigate('/dashboard')} style={{ marginTop: theme.space[4] }}>
         ← Volver al menú
-      </button>
+      </Button>
     </div>
   );
 };

@@ -2,6 +2,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ============================================================
+    // 1. RESULTADOS DE TESTS (lectura/escritura solo del dueño)
+    // ============================================================
     match /testResults/{document} {
       allow read: if request.auth != null && request.auth.uid == resource.data.userId;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
@@ -9,10 +12,16 @@ service cloud.firestore {
       allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
     }
 
+    // ============================================================
+    // 2. PERFILES DE USUARIO (lectura/escritura solo del dueño)
+    // ============================================================
     match /userProfiles/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // ============================================================
+    // 3. EVENTOS DE CRISIS (lectura/escritura solo del dueño)
+    // ============================================================
     match /crisisEvents/{document} {
       allow read: if request.auth != null && request.auth.uid == resource.data.userId;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
@@ -20,46 +29,83 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ============================================================
+    // 4. MÓDULOS DE NEUROCIENCIAS (lectura pública, escritura desactivada)
+    // ============================================================
     match /neuroModules/{document} {
       allow read: if true;
       allow write: if false;
     }
 
+    // ============================================================
+    // 5. TRIVIA DE NEUROCIENCIAS (lectura pública, escritura desactivada)
+    // ============================================================
     match /neuroTrivia/{document} {
       allow read: if true;
       allow write: if false;
     }
 
+    // ============================================================
+    // 6. PROGRESO DE NEUROCIENCIAS (lectura/escritura solo del dueño)
+    // ============================================================
     match /neuroProgress/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // ============================================================
+    // 7. MÓDULOS DE DEPORTES (lectura pública, escritura desactivada)
+    // ============================================================
     match /deportes/{document} {
       allow read: if true;
       allow write: if false;
     }
 
+    // ============================================================
+    // 8. TRIVIA DE DEPORTES (lectura pública, escritura desactivada)
+    // ============================================================
     match /deportesTrivia/{document} {
       allow read: if true;
       allow write: if false;
     }
 
+    // ============================================================
+    // 9. PROGRESO DE DEPORTES (lectura/escritura solo del dueño)
+    // ============================================================
     match /deportesProgress/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // ============================================================
+    // 10. MEDITACIONES (AUDIOS) — lectura pública, escritura desactivada
+    // ============================================================
     match /meditaciones/{document} {
       allow read: if true;
       allow write: if false;
     }
 
+    // ============================================================
+    // 11. REGISTRO DE MEDITACIONES (lectura/escritura solo del dueño)
+    // ============================================================
+    match /meditacionesRegistro/{document} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ============================================================
+    // 12. LUGARES DEL MAPA (lectura pública, escritura solo autenticados)
+    // ============================================================
     match /lugares/{document} {
       allow read: if true;
       allow write: if request.auth != null;
     }
 
+    // ============================================================
+    // 13. RESEÑAS (lectura pública, creación solo autenticados)
+    // ============================================================
     match /resenas/{document} {
       allow read: if true;
       allow create: if request.auth != null;
@@ -67,19 +113,53 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ============================================================
+    // 14. MÓDULOS DE CAMINOS ESPIRITUALES (lectura pública, escritura desactivada)
+    // ============================================================
     match /caminos/{document} {
       allow read: if true;
       allow write: if false;
     }
 
+    // ============================================================
+    // 15. TRIVIA DE CAMINOS ESPIRITUALES (lectura pública, escritura desactivada)
+    // ============================================================
     match /caminosTrivia/{document} {
       allow read: if true;
       allow write: if false;
     }
 
+    // ============================================================
+    // 16. PROGRESO DE CAMINOS ESPIRITUALES (lectura/escritura solo del dueño)
+    // ============================================================
     match /caminosProgress/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
       allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ============================================================
+    // 17. DESAFÍOS (lectura/escritura solo del dueño) — GAMIFICACIÓN
+    // ============================================================
+    match /desafios/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ============================================================
+    // 18. RACHAS (lectura/escritura solo del dueño) — GAMIFICACIÓN
+    // ============================================================
+    match /rachas/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ============================================================
+    // 19. TOKENS DE NOTIFICACIÓN (lectura/escritura solo del dueño)
+    // ============================================================
+    match /tokensNotificacion/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
   }

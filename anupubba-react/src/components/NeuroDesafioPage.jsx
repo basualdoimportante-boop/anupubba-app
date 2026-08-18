@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useAuth } from '../context/AuthContext';
+import { theme } from '../theme';
+import Button from './Button';
 
 const NeuroDesafioPage = () => {
   const { chapterId } = useParams();
@@ -13,9 +15,11 @@ const NeuroDesafioPage = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState(null);
   const [score, setScore] = useState(0);
+  const [answered, setAnswered] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showExplanation, setShowExplanation] = useState(false);
 
   useEffect(() => {
     const fetchQuestions = async () => {
@@ -40,7 +44,6 @@ const NeuroDesafioPage = () => {
           setLoading(false);
           return;
         }
-        // Mezclar y seleccionar 10
         const shuffled = allQuestions.sort(() => 0.5 - Math.random());
         const selected = shuffled.slice(0, 10);
         setQuestions(selected);
@@ -55,113 +58,164 @@ const NeuroDesafioPage = () => {
   }, [chapterId]);
 
   const handleOptionClick = (optionIndex) => {
-    if (selectedOption !== null) return;
+    if (answered) return;
     setSelectedOption(optionIndex);
-    const currentQ = questions[currentIndex];
-    let isCorrect = false;
-    if (currentQ.type === 'true-false') {
-      // Para true-false, el campo 'correct' es booleano; comparamos con el índice seleccionado (0 o 1)
-      isCorrect = (optionIndex === 0 ? true : false) === currentQ.correct;
-    } else {
-      // Para multiple-choice, 'correct' es el índice de la opción correcta
-      isCorrect = optionIndex === currentQ.correct;
-    }
-    if (isCorrect) setScore(score + 1);
+  };
 
-    setTimeout(() => {
-      if (currentIndex + 1 < questions.length) {
-        setCurrentIndex(currentIndex + 1);
-        setSelectedOption(null);
-      } else {
-        setShowResult(true);
+  const handleVerify = () => {
+    if (selectedOption === null) {
+      alert('Selecciona una respuesta antes de verificar.');
+      return;
+    }
+    const current = questions[currentIndex];
+    const isCorrect = selectedOption === current.correctAnswer;
+    if (isCorrect) setScore(score + 1);
+    setShowExplanation(true);
+    setAnswered(true);
+  };
+
+  const handleNext = () => {
+    if (currentIndex + 1 < questions.length) {
+      setCurrentIndex(currentIndex + 1);
+      setAnswered(false);
+      setSelectedOption(null);
+      setShowExplanation(false);
+    } else {
+      setShowResult(true);
+      if (score >= 7 && currentUser) {
+        guardarProgreso();
       }
-    }, 1000);
+    }
+  };
+
+  const guardarProgreso = async () => {
+    try {
+      const docRef = doc(db, 'neuroProgress', currentUser.uid);
+      const docSnap = await getDoc(docRef);
+      let data = docSnap.exists() ? docSnap.data() : { userId: currentUser.uid };
+      // Guardar el progreso como un objeto con clave chapterId
+      data[chapterId] = { passed: true, score: score, fecha: new Date().toISOString() };
+      await setDoc(docRef, data, { merge: true });
+      console.log('✅ Progreso guardado en neuroProgress');
+    } catch (err) {
+      console.error('Error al guardar progreso:', err);
+    }
   };
 
   const handleRestart = () => {
     setCurrentIndex(0);
     setSelectedOption(null);
     setScore(0);
+    setAnswered(false);
     setShowResult(false);
+    setShowExplanation(false);
     const shuffled = questions.sort(() => 0.5 - Math.random());
     const selected = shuffled.slice(0, 10);
     setQuestions(selected);
   };
 
-  if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Cargando preguntas...</div>;
-  if (error) return <div style={{ padding: '40px', textAlign: 'center', color: 'red' }}>{error}</div>;
-  if (questions.length === 0) return <div style={{ padding: '40px', textAlign: 'center' }}>No hay preguntas disponibles.</div>;
+  if (loading) return <div style={{ padding: theme.space[8], textAlign: 'center' }}>Cargando preguntas...</div>;
+  if (error) return <div style={{ padding: theme.space[8], textAlign: 'center', color: 'red' }}>{error}</div>;
+  if (questions.length === 0) return <div style={{ padding: theme.space[8], textAlign: 'center' }}>No hay preguntas disponibles.</div>;
 
   if (showResult) {
     const passed = score >= 7;
     return (
-      <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
-        <h2>✅ Resultado - Neurociencias</h2>
-        <p>Acertaste <strong>{score}</strong> de {questions.length} preguntas.</p>
-        <p>{passed ? '🎉 ¡Felicidades! Has aprobado el capítulo.' : '😅 No alcanzaste el 70%. ¡Inténtalo de nuevo!'}</p>
-        <button onClick={handleRestart} style={{ padding: '10px 20px', background: '#6C63FF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', marginRight: '10px' }}>
-          Intentar de nuevo
-        </button>
-        <button onClick={() => navigate('/neuro')} style={{ padding: '10px 20px', background: '#6C63FF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
-          Volver a Neurociencias
-        </button>
+      <div style={{ maxWidth: '600px', margin: `${theme.space[8]} auto`, padding: theme.space[4], textAlign: 'center' }}>
+        <h2 style={{ color: theme.colors.textPrimary }}>✅ Resultado - Neurociencias</h2>
+        <div style={{ background: theme.colors.surface, borderRadius: theme.radius.card, padding: theme.space[6], margin: `${theme.space[4]} 0`, boxShadow: theme.shadow.card }}>
+          <p style={{ fontSize: '2rem', fontWeight: theme.font.weight.emphasis }}>{score} / {questions.length}</p>
+          <p>{passed ? '🎉 ¡Felicidades! Has aprobado el capítulo.' : '😅 No alcanzaste el 70%. ¡Inténtalo de nuevo!'}</p>
+        </div>
+        <div style={{ display: 'flex', gap: theme.space[3], justifyContent: 'center', flexWrap: 'wrap' }}>
+          <Button onClick={handleRestart}>🔄 Intentar de nuevo</Button>
+          <Button variant="secondary" onClick={() => navigate('/neuro')}>← Volver a Neurociencias</Button>
+        </div>
       </div>
     );
   }
 
-  const currentQ = questions[currentIndex];
-  // Determinar las opciones según el tipo
-  let options = [];
-  let isTrueFalse = false;
-  if (currentQ.type === 'true-false') {
-    isTrueFalse = true;
-    options = ['Verdadero', 'Falso'];
+  const current = questions[currentIndex];
+  const isMultiple = current.type === 'multiple-choice';
+  const progress = ((currentIndex + 1) / questions.length) * 100;
+
+  let displayOptions = [];
+  if (isMultiple && Array.isArray(current.options) && current.options.length > 0) {
+    displayOptions = current.options;
+  } else if (!isMultiple) {
+    displayOptions = ['Verdadero', 'Falso'];
   } else {
-    options = currentQ.options || [];
+    return (
+      <div style={{ maxWidth: '600px', margin: `${theme.space[8]} auto`, padding: theme.space[4] }}>
+        <h2 style={{ color: 'red' }}>Error en la pregunta</h2>
+        <p>Esta pregunta no tiene opciones válidas.</p>
+        <Button variant="secondary" onClick={() => navigate('/neuro')}>← Volver a Neurociencias</Button>
+      </div>
+    );
   }
 
   return (
-    <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
-      <h2>🧠 Desafío - Neurociencias</h2>
-      <p>Pregunta {currentIndex + 1} de {questions.length}</p>
-      <p style={{ fontSize: '18px', fontWeight: '500' }}>{currentQ.question}</p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '16px' }}>
-        {options.map((opt, idx) => {
-          // Determinar si esta opción es la correcta según el tipo
-          let isCorrect = false;
-          if (isTrueFalse) {
-            isCorrect = (idx === 0 ? true : false) === currentQ.correct;
-          } else {
-            isCorrect = idx === currentQ.correct;
-          }
-          return (
-            <button
-              key={idx}
-              onClick={() => handleOptionClick(idx)}
-              disabled={selectedOption !== null}
-              style={{
-                display: 'block',
-                width: '100%',
-                padding: '12px',
-                backgroundColor: selectedOption !== null && isCorrect ? '#28a745' :
-                                selectedOption === idx && !isCorrect ? '#dc3545' :
-                                selectedOption === idx ? '#6C63FF' : '#f0f0f0',
-                color: selectedOption !== null && (isCorrect || selectedOption === idx) ? 'white' : 'black',
-                border: '1px solid #ccc',
-                borderRadius: '5px',
-                cursor: selectedOption !== null ? 'default' : 'pointer',
-                transition: 'all 0.2s',
-              }}
-            >
-              {opt}
-            </button>
-          );
-        })}
+    <div style={{ maxWidth: '600px', margin: `${theme.space[8]} auto`, padding: theme.space[4] }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.space[2] }}>
+        <h2 style={{ color: theme.colors.textPrimary }}>🧠 Desafío - Neurociencias</h2>
+        <span style={{ color: theme.colors.textSecondary }}>{currentIndex + 1} / {questions.length}</span>
       </div>
-      {selectedOption !== null && (
-        <div style={{ marginTop: '16px', padding: '12px', background: '#f9f9f9', borderRadius: '8px' }}>
-          <p>{currentQ.explanation}</p>
+      <div style={{ width: '100%', height: '6px', background: '#eee', borderRadius: '3px', marginBottom: theme.space[4] }}>
+        <div style={{ width: `${progress}%`, height: '100%', background: theme.colors.accentPrimary, borderRadius: '3px', transition: 'width 0.3s ease' }} />
+      </div>
+      <div style={{ background: theme.colors.surface, borderRadius: theme.radius.card, padding: theme.space[4], marginBottom: theme.space[4], boxShadow: theme.shadow.card }}>
+        <p style={{ fontSize: '1.1rem', marginBottom: theme.space[4] }}>{current.question}</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: theme.space[2] }}>
+          {displayOptions.map((option, idx) => {
+            const optionValue = isMultiple ? idx : (idx === 0);
+            let buttonStyle = {
+              display: 'block',
+              width: '100%',
+              padding: theme.space[3],
+              border: '2px solid #ddd',
+              borderRadius: theme.radius.button,
+              cursor: answered ? 'default' : 'pointer',
+              backgroundColor: '#ffffff',
+              textAlign: 'left',
+              fontSize: theme.font.size.base,
+              transition: 'all 0.2s',
+            };
+            if (answered) {
+              if (optionValue === current.correctAnswer) {
+                buttonStyle.border = '2px solid #2e7d32';
+                buttonStyle.backgroundColor = '#e8f5e9';
+              } else if (selectedOption === optionValue && optionValue !== current.correctAnswer) {
+                buttonStyle.border = '2px solid #c62828';
+                buttonStyle.backgroundColor = '#ffebee';
+              }
+            } else if (selectedOption === optionValue) {
+              buttonStyle.border = `2px solid ${theme.colors.accentPrimary}`;
+              buttonStyle.backgroundColor = '#f0eeff';
+            }
+            return (
+              <button key={idx} style={buttonStyle} onClick={() => handleOptionClick(optionValue)} disabled={answered}>
+                <span style={{ color: theme.colors.textPrimary }}>
+                  {isMultiple ? `${String.fromCharCode(65 + idx)}. ${option}` : option}
+                </span>
+              </button>
+            );
+          })}
         </div>
+        {showExplanation && (
+          <div style={{ marginTop: theme.space[4], padding: theme.space[3], background: '#f9f9f9', borderRadius: theme.radius.card }}>
+            <p style={{ color: selectedOption === current.correctAnswer ? '#2e7d32' : '#c62828' }}>
+              {selectedOption === current.correctAnswer ? '✅ Correcto' : '❌ Incorrecto'}
+            </p>
+            <p style={{ fontSize: theme.font.size.sm, color: theme.colors.textSecondary }}>{current.explanation}</p>
+          </div>
+        )}
+      </div>
+      {!answered ? (
+        <Button onClick={handleVerify}>Verificar respuesta</Button>
+      ) : (
+        <Button onClick={handleNext}>
+          {currentIndex + 1 === questions.length ? 'Ver resultados' : 'Siguiente →'}
+        </Button>
       )}
     </div>
   );

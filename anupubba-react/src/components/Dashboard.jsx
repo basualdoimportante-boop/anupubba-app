@@ -3,6 +3,10 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { theme } from '../theme';
+import Button from './Button';
+import Card from './Card';
+import { HeartHandshake } from 'lucide-react';
 
 const Dashboard = () => {
   const { currentUser, logout } = useAuth();
@@ -45,66 +49,73 @@ const Dashboard = () => {
     navigate('/login');
   };
 
-  const buttonStyle = {
-    padding: '14px 20px',
-    background: '#6C63FF',
-    color: 'white',
-    border: 'none',
-    borderRadius: '12px',
-    fontSize: '16px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    boxShadow: '0 4px 12px rgba(108, 99, 255, 0.3)',
-    transition: 'all 0.2s',
-    width: '100%',
-    textAlign: 'left',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
+  const pageStyle = {
+    maxWidth: '500px',
+    margin: `${theme.space[8]} auto`,
+    padding: theme.space[4],
   };
 
-  if (loadingPref) return <div style={{ padding: '40px', textAlign: 'center' }}>Cargando...</div>;
+  const titleStyle = {
+    color: theme.colors.textPrimary,
+    fontSize: theme.font.size.xxxl,
+    fontWeight: theme.font.weight.emphasis,
+    marginBottom: theme.space[2],
+  };
+
+  const subtitleStyle = {
+    color: theme.colors.textSecondary,
+    marginBottom: theme.space[6],
+  };
+
+  const buttonContainerStyle = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: theme.space[3],
+  };
+
+  if (loadingPref) {
+    return <div style={{ padding: theme.space[8], textAlign: 'center' }}>Cargando...</div>;
+  }
 
   return (
-    <div style={{ maxWidth: '500px', margin: '40px auto', padding: '20px' }}>
-      <h1 style={{ color: '#6C63FF', fontSize: '28px', marginBottom: '8px' }}>🌅 Anupubba</h1>
-      <p style={{ color: '#555', marginBottom: '24px' }}>Bienvenido, {currentUser?.email}</p>
+    <div style={pageStyle}>
+      <h1 style={titleStyle}>🌅 Anupubba</h1>
+      <p style={subtitleStyle}>Bienvenido, {currentUser?.email}</p>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <button onClick={() => navigate('/tests')} style={buttonStyle}>📋 Tests</button>
-        <button onClick={() => navigate('/neuro')} style={buttonStyle}>🧠 Neurociencias</button>
-        <button onClick={() => navigate('/deportes')} style={buttonStyle}>🏃 Deportes</button>
-        <button onClick={() => navigate('/caminos')} style={buttonStyle}>🕉️ Caminos Espirituales</button>
-        <button onClick={() => navigate('/meditaciones')} style={buttonStyle}>🪷 Meditaciones</button>
-        <button onClick={() => navigate('/juegos')} style={buttonStyle}>🎮 Juegos</button>
-        <button onClick={() => navigate('/mapa')} style={buttonStyle}>🗺️ Mapa Consciente</button>
+      <div style={buttonContainerStyle}>
+        <Button onClick={() => navigate('/tests')}>📋 Tests</Button>
+        <Button onClick={() => navigate('/neuro')}>🧠 Neurociencias</Button>
+        <Button onClick={() => navigate('/deportes')}>🏃 Deportes</Button>
+        <Button onClick={() => navigate('/caminos')}>🕉️ Caminos Espirituales</Button>
+        <Button onClick={() => navigate('/meditaciones')}>🪷 Meditaciones</Button>
+        <Button onClick={() => navigate('/juegos')}>🎮 Juegos</Button>
+        <Button onClick={() => navigate('/mapa')}>🗺️ Mapa Consciente</Button>
 
-        <button
+        <Button
+          variant="secondary"
           onClick={toggleRecordatorios}
           style={{
-            ...buttonStyle,
-            background: recordatoriosActivos ? '#28a745' : '#6c757d',
-            boxShadow: recordatoriosActivos ? '0 4px 12px rgba(40, 167, 69, 0.3)' : 'none',
+            background: recordatoriosActivos ? theme.colors.accentCalm : 'transparent',
+            border: recordatoriosActivos ? 'none' : `2px solid ${theme.colors.accentPrimary}`,
+            color: recordatoriosActivos ? '#FFFFFF' : theme.colors.accentPrimary,
           }}
         >
           {recordatoriosActivos ? '✅ Recordatorios activados' : '🔕 Recordatorios desactivados'}
-        </button>
+        </Button>
 
-        {/* 👇 BOTÓN ACERCA DE */}
-        <button onClick={() => navigate('/about')} style={buttonStyle}>
-          🌅 Acerca de Anupubba
-        </button>
+        <Button onClick={() => navigate('/about')}>🌅 Acerca de Anupubba</Button>
 
-        <button
+        <Button
+          variant="secondary"
           onClick={handleLogout}
           style={{
-            ...buttonStyle,
-            background: '#e53e3e',
-            boxShadow: '0 4px 12px rgba(229, 62, 62, 0.3)',
+            background: 'transparent',
+            border: `2px solid ${theme.colors.textSecondary}`,
+            color: theme.colors.textSecondary,
           }}
         >
           🚪 Cerrar sesión
-        </button>
+        </Button>
       </div>
     </div>
   );

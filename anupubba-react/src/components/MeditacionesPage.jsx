@@ -1,134 +1,215 @@
-import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, query, where } from 'firebase/firestore';
+import React, { useState, useEffect, useRef } from 'react';
+import { collection, getDocs, addDoc, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { theme } from '../theme';
+import Button from './Button';
+import Card from './Card';
 
 const MeditacionesPage = () => {
   const [meditaciones, setMeditaciones] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [total, setTotal] = useState(0);
-  const [weekly, setWeekly] = useState([]);
+  const [registros, setRegistros] = useState([]);
+  const [estadisticas, setEstadisticas] = useState({ hoy: 0, semana: 0, mes: 0 });
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+  const [sesionRegistrada, setSesionRegistrada] = useState({});
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, 'meditaciones'));
-        const data = [];
-        querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
-        setMeditaciones(data);
+        // 1. Obtener meditaciones
+        const medSnap = await getDocs(collection(db, 'meditaciones'));
+        const medData = [];
+        medSnap.forEach((doc) => {
+          const data = doc.data();
+          // 🔥 USAMOS LOS CAMPOS REALES: fileUrl y title
+          const med = {
+            id: doc.id,
+            title: data.title || 'Sin título',
+            url: data.fileUrl || '', // ← campo real en Firestore
+            description: data.description || '',
+            order: data.order || 0,
+          };
+          medData.push(med);
+          console.log('📦 Meditación cargada:', med.title, 'URL:', med.url);
+        });
+        // Ordenar por order
+        medData.sort((a, b) => a.order - b.order);
+        setMeditaciones(medData);
 
+        // 2. Obtener registros del usuario
         if (currentUser) {
-          const registrosRef = collection(db, 'meditacionesRegistro');
-          const q = query(registrosRef, where('userId', '==', currentUser.uid));
-          const snapshot = await getDocs(q);
-          const registros = [];
-          snapshot.forEach(doc => registros.push(doc.data().fecha));
-          setTotal(registros.length);
+          const q = query(
+            collection(db, 'meditacionesRegistro'),
+            where('userId', '==', currentUser.uid),
+            orderBy('fecha', 'desc')
+          );
+          const regSnap = await getDocs(q);
+          const regData = [];
+          regSnap.forEach((doc) => regData.push({ id: doc.id, ...doc.data() }));
+          setRegistros(regData);
 
-          const hoy = new Date();
-          const ultimaSemana = [];
-          for (let i = 6; i >= 0; i--) {
-            const dia = new Date(hoy);
-            dia.setDate(dia.getDate() - i);
-            const diaStr = dia.toISOString().split('T')[0];
-            const count = registros.filter(f => f.startsWith(diaStr)).length;
-            ultimaSemana.push({ fecha: diaStr, count });
-          }
-          setWeekly(ultimaSemana);
+          // Calcular estadísticas
+          const ahora = new Date();
+          const hoyInicio = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+          const semanaInicio = new Date(ahora);
+          semanaInicio.setDate(ahora.getDate() - ahora.getDay());
+          semanaInicio.setHours(0, 0, 0, 0);
+          const mesInicio = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+
+          let hoyCount = 0, semanaCount = 0, mesCount = 0;
+          regData.forEach((reg) => {
+            const fechaReg = new Date(reg.fecha);
+            if (fechaReg >= hoyInicio) hoyCount++;
+            if (fechaReg >= semanaInicio) semanaCount++;
+            if (fechaReg >= mesInicio) mesCount++;
+          });
+          setEstadisticas({ hoy: hoyCount, semana: semanaCount, mes: mesCount });
         }
         setLoading(false);
       } catch (err) {
-        console.error(err);
+        console.error('Error al cargar datos:', err);
         setLoading(false);
       }
     };
     fetchData();
   }, [currentUser]);
 
-  const registrarMeditacion = async () => {
+  // Registrar sesión automáticamente al reproducir
+  const handlePlay = async (meditacionId) => {
     if (!currentUser) {
-      alert('Inicia sesión para registrar');
+      console.warn('Usuario no autenticado');
       return;
     }
+    if (sesionRegistrada[meditacionId]) {
+      console.log('Sesión ya registrada');
+      return;
+    }
+
     try {
       await addDoc(collection(db, 'meditacionesRegistro'), {
         userId: currentUser.uid,
         fecha: new Date().toISOString(),
+        meditacionId: meditacionId,
       });
-      alert('🧘 ¡Meditación registrada! Sigue así.');
-      window.location.reload();
+      setSesionRegistrada((prev) => ({ ...prev, [meditacionId]: true }));
+
+      // Recargar registros y estadísticas
+      const q = query(
+        collection(db, 'meditacionesRegistro'),
+        where('userId', '==', currentUser.uid),
+        orderBy('fecha', 'desc')
+      );
+      const regSnap = await getDocs(q);
+      const regData = [];
+      regSnap.forEach((doc) => regData.push({ id: doc.id, ...doc.data() }));
+      setRegistros(regData);
+
+      const ahora = new Date();
+      const hoyInicio = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+      const semanaInicio = new Date(ahora);
+      semanaInicio.setDate(ahora.getDate() - ahora.getDay());
+      semanaInicio.setHours(0, 0, 0, 0);
+      const mesInicio = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+      let hoyCount = 0, semanaCount = 0, mesCount = 0;
+      regData.forEach((reg) => {
+        const fechaReg = new Date(reg.fecha);
+        if (fechaReg >= hoyInicio) hoyCount++;
+        if (fechaReg >= semanaInicio) semanaCount++;
+        if (fechaReg >= mesInicio) mesCount++;
+      });
+      setEstadisticas({ hoy: hoyCount, semana: semanaCount, mes: mesCount });
+
+      console.log('🧘 Sesión registrada automáticamente');
     } catch (err) {
-      console.error(err);
-      alert('Error al registrar');
+      console.error('Error al registrar sesión:', err);
     }
   };
 
-  if (loading) return <div>Cargando...</div>;
+  const formatDate = (fechaStr) => {
+    const fecha = new Date(fechaStr);
+    return fecha.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  if (loading) {
+    return <div style={{ padding: theme.space[8], textAlign: 'center' }}>Cargando meditaciones...</div>;
+  }
 
   return (
-    <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
-      <h2>🪷 Meditaciones</h2>
-      <p>Escucha y registra tus sesiones de meditación.</p>
+    <div style={{ maxWidth: '800px', margin: `${theme.space[8]} auto`, padding: theme.space[4] }}>
+      <h2 style={{ color: theme.colors.textPrimary, fontSize: theme.font.size.xxl, fontWeight: theme.font.weight.emphasis, marginBottom: theme.space[2] }}>🪷 Meditaciones</h2>
+      <p style={{ color: theme.colors.textSecondary, marginBottom: theme.space[6] }}>
+        Escucha y registra tus sesiones (se registran automáticamente al reproducir).
+      </p>
 
       {currentUser && (
-        <div style={{ background: '#f0eeff', padding: '16px', borderRadius: '12px', marginBottom: '20px' }}>
-          <p><strong>Total de sesiones:</strong> {total}</p>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {weekly.map((d, i) => (
-              <div key={i} style={{ textAlign: 'center', background: 'white', padding: '8px', borderRadius: '8px', minWidth: '40px' }}>
-                <div>{d.fecha.slice(5)}</div>
-                <div style={{ fontWeight: 'bold', color: '#6C63FF' }}>{d.count}</div>
-              </div>
-            ))}
+        <Card style={{ marginBottom: theme.space[6] }}>
+          <h3 style={{ marginBottom: theme.space[3], color: theme.colors.textPrimary }}>📊 Tu práctica</h3>
+          <div style={{ display: 'flex', gap: theme.space[4], flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: theme.font.size.xl, fontWeight: theme.font.weight.emphasis, color: theme.colors.accentPrimary }}>{estadisticas.hoy}</div>
+              <div style={{ fontSize: theme.font.size.sm, color: theme.colors.textSecondary }}>Hoy</div>
+            </div>
+            <div>
+              <div style={{ fontSize: theme.font.size.xl, fontWeight: theme.font.weight.emphasis, color: theme.colors.accentSecondary }}>{estadisticas.semana}</div>
+              <div style={{ fontSize: theme.font.size.sm, color: theme.colors.textSecondary }}>Esta semana</div>
+            </div>
+            <div>
+              <div style={{ fontSize: theme.font.size.xl, fontWeight: theme.font.weight.emphasis, color: theme.colors.accentCalm }}>{estadisticas.mes}</div>
+              <div style={{ fontSize: theme.font.size.sm, color: theme.colors.textSecondary }}>Este mes</div>
+            </div>
           </div>
-          <button onClick={registrarMeditacion} style={{ marginTop: '12px', padding: '10px 20px', background: '#6C63FF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
-            + Registrar meditación
-          </button>
-        </div>
+        </Card>
       )}
 
-      <div style={{ marginTop: '20px' }}>
-        {meditaciones.map((med) => (
-          <div key={med.id} style={{ border: '1px solid #ddd', borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
-            <h3>{med.titulo}</h3>
-            <p>{med.descripcion}</p>
-            <audio controls src={med.url} style={{ width: '100%' }} />
-          </div>
-        ))}
+      {currentUser && registros.length > 0 && (
+        <Card style={{ marginBottom: theme.space[6] }}>
+          <h4 style={{ marginBottom: theme.space[2], color: theme.colors.textPrimary }}>📜 Últimas sesiones</h4>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            {registros.slice(0, 5).map((reg) => (
+              <li key={reg.id} style={{ padding: `${theme.space[2]} 0`, borderBottom: `1px solid ${theme.colors.border}` }}>
+                {formatDate(reg.fecha)}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: theme.space[4] }}>
+        {meditaciones.length === 0 ? (
+          <p>No hay meditaciones disponibles.</p>
+        ) : (
+          meditaciones.map((med) => (
+            <Card key={med.id}>
+              <h3 style={{ color: theme.colors.textPrimary, marginBottom: theme.space[1] }}>{med.title}</h3>
+              <p style={{ color: theme.colors.textSecondary, marginBottom: theme.space[3] }}>{med.description}</p>
+              <audio
+                controls
+                src={med.url}
+                style={{ width: '100%', borderRadius: theme.radius.button }}
+                onPlay={() => handlePlay(med.id)}
+                onError={(e) => {
+                  console.error('❌ Error al cargar audio:', med.url, e);
+                  alert(`No se pudo cargar el audio: ${med.title}. Verifica la URL en Firebase.`);
+                }}
+              >
+                Tu navegador no soporta el reproductor de audio.
+              </audio>
+              {sesionRegistrada[med.id] && (
+                <div style={{ marginTop: theme.space[2], fontSize: theme.font.size.sm, color: theme.colors.accentCalm }}>
+                  ✅ Sesión registrada
+                </div>
+              )}
+            </Card>
+          ))
+        )}
       </div>
 
-      {/* 🔥 Botón "Volver al menú" */}
-      <button
-        onClick={() => navigate('/dashboard')}
-        style={{
-          marginTop: '24px',
-          padding: '12px',
-          background: '#e2e8f0',
-          color: '#4a5568',
-          border: 'none',
-          borderRadius: '12px',
-          cursor: 'pointer',
-          width: '100%',
-          fontSize: '16px',
-          fontWeight: '600',
-          transition: 'all 0.2s',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '8px',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = '#cbd5e0';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = '#e2e8f0';
-        }}
-      >
+      <Button variant="secondary" onClick={() => navigate('/dashboard')} style={{ marginTop: theme.space[6] }}>
         ← Volver al menú
-      </button>
+      </Button>
     </div>
   );
 };
