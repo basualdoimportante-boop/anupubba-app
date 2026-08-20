@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getDesafios, getRachas } from '../services/gamificationService';
+import { theme } from '../theme';
 
 const Desafios = () => {
   const { currentUser } = useAuth();
@@ -18,50 +19,47 @@ const Desafios = () => {
         setRachas(rachasData);
         setLoading(false);
       } catch (err) {
-        console.error(err);
+        console.error('Error al cargar desafíos:', err);
         setLoading(false);
       }
     };
     fetchData();
   }, [currentUser]);
 
-  if (loading) return <div style={{ padding: '20px', textAlign: 'center' }}>Cargando desafíos...</div>;
+  if (loading) return <div style={{ padding: theme.space[4], textAlign: 'center' }}>Cargando desafíos...</div>;
 
   const completadas = misiones.filter(m => m.completada).length;
   const total = misiones.length;
   const progreso = total > 0 ? Math.round((completadas / total) * 100) : 0;
 
   return (
-    <div style={{ background: 'white', borderRadius: '16px', padding: '20px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', marginTop: '24px' }}>
-      <h3 style={{ color: '#6C63FF', marginBottom: '8px' }}>🏅 Desafíos y rachas</h3>
-      <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
-        <div style={{ background: '#f0eeff', padding: '8px 16px', borderRadius: '20px' }}>
+    <div style={{ background: theme.colors.surface, borderRadius: theme.radius.card, padding: theme.space[4], boxShadow: theme.shadow.card, marginTop: theme.space[6] }}>
+      <h3 style={{ color: theme.colors.accentPrimary, marginBottom: theme.space[3] }}>🏅 Desafíos y rachas</h3>
+      <div style={{ display: 'flex', gap: theme.space[3], marginBottom: theme.space[4], flexWrap: 'wrap' }}>
+        <div style={{ background: theme.colors.accentSecondary + '20', padding: `${theme.space[2]} ${theme.space[4]}`, borderRadius: theme.radius.pill }}>
           <span>🧘 Meditación: <strong>{rachas.meditacion?.diasConsecutivos || 0} días</strong></span>
         </div>
-        <div style={{ background: '#f0eeff', padding: '8px 16px', borderRadius: '20px' }}>
-          <span>📋 Tests: <strong>{rachas.tests?.diasConsecutivos || 0} días</strong></span>
-        </div>
-        <div style={{ background: '#f0eeff', padding: '8px 16px', borderRadius: '20px' }}>
+        <div style={{ background: theme.colors.accentSecondary + '20', padding: `${theme.space[2]} ${theme.space[4]}`, borderRadius: theme.radius.pill }}>
           <span>📚 Aprendizaje: <strong>{rachas.aprendizaje?.diasConsecutivos || 0} días</strong></span>
         </div>
       </div>
 
-      <div style={{ background: '#f9f9ff', borderRadius: '12px', padding: '12px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <span>Progreso: {completadas}/{total} misiones</span>
-          <span>{progreso}%</span>
+      <div style={{ background: theme.colors.bg, borderRadius: theme.radius.card, padding: theme.space[3] }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: theme.space[2] }}>
+          <span style={{ fontSize: theme.font.size.sm, color: theme.colors.textSecondary }}>Progreso: {completadas}/{total} misiones</span>
+          <span style={{ fontSize: theme.font.size.sm, color: theme.colors.textSecondary }}>{progreso}%</span>
         </div>
         <div style={{ background: '#e0e0e0', borderRadius: '10px', height: '8px', overflow: 'hidden' }}>
-          <div style={{ width: `${progreso}%`, background: '#6C63FF', height: '100%' }} />
+          <div style={{ width: `${progreso}%`, background: theme.colors.accentPrimary, height: '100%' }} />
         </div>
       </div>
 
-      <ul style={{ listStyle: 'none', padding: 0, marginTop: '12px' }}>
+      <ul style={{ listStyle: 'none', padding: 0, marginTop: theme.space[3] }}>
         {misiones.map(m => (
-          <li key={m.id} style={{ padding: '8px 0', borderBottom: '1px solid #eee', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <li key={m.id} style={{ padding: `${theme.space[2]} 0`, borderBottom: `1px solid ${theme.colors.border}`, display: 'flex', alignItems: 'center', gap: theme.space[2] }}>
             <span>{m.completada ? '✅' : '⬜'}</span>
-            <span style={{ flex: 1 }}>{m.nombre}</span>
-            <span style={{ fontSize: '12px', color: '#888' }}>{m.completada ? `🏆 ${m.recompensa}` : '🔒'}</span>
+            <span style={{ flex: 1, fontSize: theme.font.size.sm, color: theme.colors.textPrimary }}>{m.nombre}</span>
+            <span style={{ fontSize: theme.font.size.xs, color: theme.colors.textSecondary }}>{m.completada ? `🏆 ${m.recompensa}` : '🔒'}</span>
           </li>
         ))}
       </ul>

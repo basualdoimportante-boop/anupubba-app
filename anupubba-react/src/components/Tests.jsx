@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { collection, getDocs, addDoc, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useAuth } from '../context/AuthContext';
+import { actualizarRacha, completarMision } from '../services/gamificationService';
 
 const TEST_COLLECTION = 'testResults';
 
@@ -202,16 +203,6 @@ const Tests = () => {
 
     setEnviando(true);
     try {
-      console.log('📝 Guardando resultado con userId:', currentUser.uid);
-      console.log('📝 Datos a guardar:', {
-        userId: currentUser.uid,
-        testType: testId,
-        fecha: new Date().toISOString(),
-        puntaje: puntaje,
-        version: 'v2',
-        respuestas: respuestas,
-      });
-
       await addDoc(collection(db, TEST_COLLECTION), {
         userId: currentUser.uid,
         testType: testId,
@@ -221,21 +212,24 @@ const Tests = () => {
         respuestas: respuestas,
       });
 
-      // ✅ GAMIFICACIÓN DESACTIVADA TEMPORALMENTE (comentada)
-      // await actualizarRacha(currentUser.uid, 'tests');
-      // const q = query(
-      //   collection(db, TEST_COLLECTION),
-      //   where('userId', '==', currentUser.uid),
-      //   where('version', '==', 'v2')
-      // );
-      // const snapshot = await getDocs(q);
-      // const totalTests = snapshot.size;
-      // if (totalTests === 1) {
-      //   await completarMision(currentUser.uid, 'primer_test');
-      // }
-      // if (totalTests >= 3) {
-      //   await completarMision(currentUser.uid, 'tres_tests');
-      // }
+      // 🏅 GAMIFICACIÓN: Actualizar racha de tests
+      await actualizarRacha(currentUser.uid, 'tests');
+
+      // Contar cuántos tests ha hecho (versión v2)
+      const q = query(
+        collection(db, TEST_COLLECTION),
+        where('userId', '==', currentUser.uid),
+        where('version', '==', 'v2')
+      );
+      const snapshot = await getDocs(q);
+      const totalTests = snapshot.size;
+
+      if (totalTests === 1) {
+        await completarMision(currentUser.uid, 'primer_test');
+      }
+      if (totalTests >= 3) {
+        await completarMision(currentUser.uid, 'tres_tests');
+      }
 
       const nuevoHistorial = [
         { fecha: new Date().toISOString(), puntaje: puntaje },
@@ -244,7 +238,6 @@ const Tests = () => {
       setHistorico(nuevoHistorial);
       setEnviando(false);
       setPuntajeTotal(puntaje);
-      alert('✅ Test guardado correctamente');
     } catch (err) {
       console.error('❌ Error al guardar resultado:', err);
       alert('Error al guardar el resultado. Revisa la consola.');

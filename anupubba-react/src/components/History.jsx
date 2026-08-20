@@ -1,175 +1,431 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { theme } from '../theme';
+import Button from './Button';
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceArea,
-  Area
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ReferenceArea, ReferenceLine, ResponsiveContainer, Dot
 } from 'recharts';
+import { AlertTriangle, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp } from 'lucide-react';
 
 // ============================================================
-// CONFIGURACIÓN DE TESTS
+// CONFIGURACIÓN POR TEST (colores intensos y orden corregido)
 // ============================================================
+const FREQUENCY_DAYS = {
+  who5: 7,
+  phq9: 14,
+  pss10: 30,
+  gad7: 14,
+};
+
+// Paleta de colores intensos
+const ZONE_COLORS = {
+  green: '#1b7a34',    // zona buena / baja
+  yellow: '#f9a825',   // zona moderada
+  orange: '#e65100',   // zona alta / severa
+  red: '#b71c1c',      // zona crítica
+  purple: '#4a148c',   // zona intermedia (para algunos tests)
+};
+
 const TEST_CONFIG = {
   who5: {
     label: 'Bienestar general',
-    color: '#6C63FF',
-    // Franjas: [inicio, fin, color, etiqueta]
-    bands: [
-      { min: 0, max: 12, color: '#ff6b6b', label: 'A atender' },
-      { min: 13, max: 17, color: '#ffd93d', label: 'Moderado' },
-      { min: 18, max: 25, color: '#6bcb77', label: 'Bueno' },
-    ],
-    maxScore: 25,
-    // Quién tiene puntaje alto = bueno
+    subtitle: 'Últimos 14 días',
+    max: 25,
     higherIsBetter: true,
-    // Mensajes para resumen
-    messages: {
-      improving: '✨ Tu bienestar general ha mejorado. ¡Sigue así!',
-      stable: '📊 Tu bienestar se mantiene estable.',
-      declining: '🌱 Notamos un cambio. Revisa tus hábitos de autocuidado.',
-      first: 'Este es tu primer registro. ¡Sigue cultivando tu bienestar!',
-    },
-  },
-  pss10: {
-    label: 'Estrés percibido',
-    color: '#f97316',
-    bands: [
-      { min: 0, max: 13, color: '#6bcb77', label: 'Bajo' },
-      { min: 14, max: 20, color: '#ffd93d', label: 'Moderado' },
-      { min: 21, max: 27, color: '#ff9f43', label: 'Alto' },
-      { min: 28, max: 40, color: '#ff6b6b', label: 'Muy alto' },
+    accent: '#1a237e', // azul oscuro para contraste
+    // ORDEN: de abajo (malo) a arriba (bueno) para que la línea suba en mejora
+    zones: [
+      { min: 0, max: 12, label: '🔴 A atender', color: ZONE_COLORS.red },
+      { min: 13, max: 17, label: '🟠 Moderado', color: ZONE_COLORS.orange },
+      { min: 18, max: 25, label: '🟢 Bueno', color: ZONE_COLORS.green },
     ],
-    maxScore: 40,
-    higherIsBetter: false,
-    messages: {
-      improving: '✨ Tu nivel de estrés ha disminuido. ¡Sigue así!',
-      stable: '📊 Tu estrés se mantiene estable.',
-      declining: '🌱 Tu estrés ha aumentado. Considera revisar tus recomendaciones.',
-      first: 'Este es tu primer registro de estrés. ¡Empieza a monitorearlo!',
-    },
-  },
-  gad7: {
-    label: 'Ansiedad',
-    color: '#8b5cf6',
-    bands: [
-      { min: 0, max: 4, color: '#6bcb77', label: 'Mínima' },
-      { min: 5, max: 9, color: '#ffd93d', label: 'Leve' },
-      { min: 10, max: 14, color: '#ff9f43', label: 'Moderada' },
-      { min: 15, max: 21, color: '#ff6b6b', label: 'Severa' },
-    ],
-    maxScore: 21,
-    higherIsBetter: false,
-    messages: {
-      improving: '✨ Tu ansiedad ha disminuido. ¡Sigue así!',
-      stable: '📊 Tu ansiedad se mantiene estable.',
-      declining: '🌱 Tu ansiedad ha aumentado. Revisa tus herramientas de regulación.',
-      first: 'Este es tu primer registro de ansiedad. ¡Empieza a monitorearla!',
-    },
+    thresholds: [{ y: 12, label: 'Umbral de atención' }],
   },
   phq9: {
     label: 'Estado de ánimo',
-    color: '#ec4899',
-    bands: [
-      { min: 0, max: 4, color: '#6bcb77', label: 'Mínima' },
-      { min: 5, max: 9, color: '#ffd93d', label: 'Leve' },
-      { min: 10, max: 14, color: '#ff9f43', label: 'Moderada' },
-      { min: 15, max: 19, color: '#ff6b6b', label: 'Moderadamente severa' },
-      { min: 20, max: 27, color: '#dc3545', label: 'Severa' },
-    ],
-    maxScore: 27,
+    subtitle: 'Últimas 2 semanas',
+    max: 27,
     higherIsBetter: false,
-    messages: {
-      improving: '✨ Tu estado de ánimo ha mejorado. ¡Sigue así!',
-      stable: '📊 Tu estado de ánimo se mantiene estable.',
-      declining: '🌱 Notamos un cambio. Recuerda que pedir apoyo es un acto de cuidado.',
-      first: 'Este es tu primer registro de estado de ánimo. ¡Empieza a monitorearlo!',
-    },
+    accent: '#1a237e',
+    // ORDEN: de abajo (bueno) a arriba (malo) para que la línea suba en empeoramiento
+    zones: [
+      { min: 0, max: 4, label: '🟢 Mínimo', color: ZONE_COLORS.green },
+      { min: 5, max: 9, label: '🟣 Leve', color: ZONE_COLORS.purple },
+      { min: 10, max: 14, label: '🟠 Moderado', color: ZONE_COLORS.orange },
+      { min: 15, max: 19, label: '🟠 Moderadamente severo', color: ZONE_COLORS.orange },
+      { min: 20, max: 27, label: '🔴 Severo', color: ZONE_COLORS.red },
+    ],
+    thresholds: [],
+    crisisNote: true,
+  },
+  pss10: {
+    label: 'Estrés percibido',
+    subtitle: 'Último mes',
+    max: 40,
+    higherIsBetter: false,
+    accent: '#1a237e',
+    zones: [
+      { min: 0, max: 13, label: '🟢 Bajo', color: ZONE_COLORS.green },
+      { min: 14, max: 20, label: '🟠 Moderado', color: ZONE_COLORS.orange },
+      { min: 21, max: 27, label: '🟠 Alto', color: ZONE_COLORS.orange },
+      { min: 28, max: 40, label: '🔴 Muy alto', color: ZONE_COLORS.red },
+    ],
+    thresholds: [],
+  },
+  gad7: {
+    label: 'Ansiedad',
+    subtitle: 'Últimas 2 semanas',
+    max: 21,
+    higherIsBetter: false,
+    accent: '#1a237e',
+    zones: [
+      { min: 0, max: 4, label: '🟢 Mínima', color: ZONE_COLORS.green },
+      { min: 5, max: 9, label: '🟣 Leve', color: ZONE_COLORS.purple },
+      { min: 10, max: 14, label: '🟠 Moderada', color: ZONE_COLORS.orange },
+      { min: 15, max: 21, label: '🔴 Severa', color: ZONE_COLORS.red },
+    ],
+    thresholds: [{ y: 10, label: 'Umbral clínico' }],
   },
 };
 
 // ============================================================
-// FUNCIONES DE CÁLCULO
+// UTILIDADES
 // ============================================================
-
-// Calcular promedio móvil de N puntos
-const calcularPromedioMovil = (datos, ventana = 3) => {
-  if (datos.length === 0) return [];
-  if (datos.length < ventana) {
-    // Si hay menos puntos que la ventana, usar todos
-    return datos.map((d, i) => {
-      const slice = datos.slice(0, i + 1);
-      const avg = slice.reduce((sum, item) => sum + item.puntaje, 0) / slice.length;
-      return { ...d, promedio: avg };
-    });
-  }
-
-  const resultado = [];
-  for (let i = 0; i < datos.length; i++) {
-    const inicio = Math.max(0, i - ventana + 1);
-    const slice = datos.slice(inicio, i + 1);
-    const avg = slice.reduce((sum, item) => sum + item.puntaje, 0) / slice.length;
-    resultado.push({ ...datos[i], promedio: avg });
-  }
-  return resultado;
+const getZone = (config, score) => {
+  return config.zones.find(z => score >= z.min && score <= z.max) || config.zones[0];
 };
 
-// Invertir visualmente el eje Y (para tests donde bajo es mejor)
-const invertirPuntaje = (puntaje, maxScore) => {
-  return maxScore - puntaje;
+const fmtDate = (iso) => {
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
 };
 
-// Determinar la banda de un puntaje
-const getBandForScore = (puntaje, bands) => {
-  for (const band of bands) {
-    if (puntaje >= band.min && puntaje <= band.max) {
-      return band;
-    }
-  }
-  return bands[bands.length - 1];
+const getTrend = (data, higherIsBetter) => {
+  if (data.length < 2) return null;
+  const latest = data[data.length - 1].score;
+  const previous = data[data.length - 2].score;
+  const diff = latest - previous;
+  if (diff === 0) return { icon: Minus, color: theme.colors.textSecondary, text: 'Sin cambio' };
+  const improving = higherIsBetter ? diff > 0 : diff < 0;
+  return {
+    icon: improving ? TrendingUp : TrendingDown,
+    color: improving ? ZONE_COLORS.green : ZONE_COLORS.red,
+    text: `${diff > 0 ? '+' : ''}${diff} vs. anterior`,
+  };
 };
 
-// Generar resumen textual
-const generarResumen = (datos, testId, testConfig) => {
-  if (datos.length === 0) return testConfig.messages.first;
-  if (datos.length === 1) return testConfig.messages.first;
-
-  // Usar los últimos dos puntos para comparar
-  const actual = datos[datos.length - 1].promedio || datos[datos.length - 1].puntaje;
-  const anterior = datos[datos.length - 2].promedio || datos[datos.length - 2].puntaje;
-
-  const diff = actual - anterior;
-
-  // Para tests donde alto es mejor (WHO-5), diff positivo = mejora
-  // Para tests donde bajo es mejor (resto), diff negativo = mejora
-  const mejora = testConfig.higherIsBetter ? diff > 0 : diff < 0;
-
-  if (Math.abs(diff) < 0.5) {
-    return testConfig.messages.stable;
-  } else if (mejora) {
-    return testConfig.messages.improving;
-  } else {
-    return testConfig.messages.declining;
+const getResumen = (data, config) => {
+  if (data.length === 0) return 'Aún no tienes registros de este test.';
+  if (data.length === 1) return 'Este es tu primer registro. ¡Sigue así!';
+  const trend = getTrend(data, config.higherIsBetter);
+  if (!trend) return `📊 Tu ${config.label} se mantiene estable.`;
+  if (trend.icon === Minus) return `📊 Tu ${config.label} se mantiene estable.`;
+  if (trend.icon === TrendingUp && config.higherIsBetter) {
+    return `✨ Tu ${config.label} ha mejorado. ¡Sigue cultivando tu bienestar!`;
   }
+  if (trend.icon === TrendingDown && !config.higherIsBetter) {
+    return `✨ Tu ${config.label} ha disminuido. ¡Sigue así!`;
+  }
+  if (trend.icon === TrendingDown && config.higherIsBetter) {
+    return `🌱 Notamos un cambio en tu ${config.label}. Recuerda que es normal tener altibajos.`;
+  }
+  if (trend.icon === TrendingUp && !config.higherIsBetter) {
+    return `🌱 Tu ${config.label} ha aumentado. Revisa tus herramientas de regulación.`;
+  }
+  return `📊 Tu ${config.label} se mantiene en la zona ${getZone(config, data[data.length-1].score).label}.`;
 };
 
 // ============================================================
-// COMPONENTE PRINCIPAL
+// SUBCOMPONENTE: GRÁFICO INDIVIDUAL
+// ============================================================
+const TestHistoryChart = ({ testType, data, onNavigate }) => {
+  const config = TEST_CONFIG[testType];
+  const [showHistory, setShowHistory] = useState(false);
+
+  const sorted = useMemo(
+    () => [...data].sort((a, b) => new Date(a.date) - new Date(b.date)),
+    [data]
+  );
+  const last = sorted[sorted.length - 1];
+  const lastZone = last ? getZone(config, last.score) : null;
+  const trend = getTrend(sorted, config.higherIsBetter);
+  const resumen = getResumen(sorted, config);
+  const nextAvailable = last ? FREQUENCY_DAYS[testType] : 0;
+
+  if (sorted.length === 0) {
+    return (
+      <div style={cardStyle}>
+        <Header config={config} />
+        <div style={{ padding: '20px 0', textAlign: 'center', color: theme.colors.textSecondary, fontSize: 14 }}>
+          🫥 Aún no hay respuestas registradas.
+        </div>
+        <Button onClick={() => onNavigate(testType)} style={{ marginTop: 8 }}>
+          Realizar test ahora
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={cardStyle}>
+      <Header config={config} />
+
+      {/* Último puntaje + zona + trend */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, margin: '4px 0 8px' }}>
+        <span style={{ fontSize: 28, fontWeight: 700, color: lastZone?.color || theme.colors.textPrimary }}>
+          {last.score}
+        </span>
+        <span style={{ fontSize: 14, color: theme.colors.textSecondary }}>
+          / {config.max} · {lastZone?.label || ''}
+        </span>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+          {trend && (
+            <>
+              <trend.icon size={16} color={trend.color} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: trend.color }}>{trend.text}</span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Resumen textual */}
+      <div style={{
+        background: '#f5f5ff',
+        padding: '8px 12px',
+        borderRadius: 8,
+        marginBottom: 10,
+        fontSize: 14,
+        color: theme.colors.textPrimary,
+        borderLeft: `4px solid ${lastZone?.color || theme.colors.accentPrimary}`,
+      }}>
+        {resumen}
+      </div>
+
+      {/* Banner de crisis (si aplica) */}
+      {testType === 'phq9' && last?.crisisFlag && (
+        <div style={{
+          background: '#ffebee',
+          border: `2px solid ${ZONE_COLORS.red}`,
+          borderRadius: 8,
+          padding: '10px 14px',
+          marginBottom: 10,
+          display: 'flex',
+          gap: 10,
+          alignItems: 'flex-start',
+        }}>
+          <AlertTriangle size={18} color={ZONE_COLORS.red} style={{ flexShrink: 0, marginTop: 2 }} />
+          <div style={{ fontSize: 14, color: ZONE_COLORS.red }}>
+            <strong>⚠️ Necesitas apoyo?</strong> Llama o envía un mensaje al <strong>*4141</strong> (atención psicológica gratuita 24/7).
+          </div>
+        </div>
+      )}
+
+      {/* Gráfico */}
+      <ResponsiveContainer width="100%" height={180}>
+        <AreaChart data={sorted} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+          <defs>
+            <linearGradient id={`grad-${testType}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={config.accent || theme.colors.accentPrimary} stopOpacity={0.35} />
+              <stop offset="100%" stopColor={config.accent || theme.colors.accentPrimary} stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+
+          {/* Zonas de fondo */}
+          {config.zones.map((z, i) => (
+            <ReferenceArea
+              key={i}
+              y1={z.min}
+              y2={z.max}
+              fill={z.color}
+              fillOpacity={0.3}
+              stroke={z.color}
+              strokeWidth={0.8}
+              strokeOpacity={0.6}
+            />
+          ))}
+          {config.thresholds.map((t, i) => (
+            <ReferenceLine
+              key={i}
+              y={t.y}
+              stroke={theme.colors.textSecondary}
+              strokeDasharray="4 4"
+              strokeWidth={1.5}
+              label={{
+                value: t.label,
+                position: 'insideTopRight',
+                fill: theme.colors.textSecondary,
+                fontSize: 10,
+              }}
+            />
+          ))}
+
+          <CartesianGrid strokeDasharray="3 3" stroke={theme.colors.border} vertical={false} />
+          <XAxis
+            dataKey="date"
+            tickFormatter={fmtDate}
+            tick={{ fontSize: 10, fill: theme.colors.textSecondary }}
+            axisLine={false}
+            tickLine={false}
+            minTickGap={20}
+          />
+          <YAxis
+            domain={[0, config.max]}
+            tick={{ fontSize: 10, fill: theme.colors.textSecondary }}
+            axisLine={false}
+            tickLine={false}
+            width={28}
+          />
+          <Tooltip
+            content={({ active, payload }) => {
+              if (active && payload && payload.length) {
+                const p = payload[0].payload;
+                const zone = getZone(config, p.score);
+                return (
+                  <div style={{
+                    background: theme.colors.surface,
+                    border: `2px solid ${zone.color}`,
+                    borderRadius: 10,
+                    padding: '8px 12px',
+                    boxShadow: theme.shadow.card,
+                    color: theme.colors.textPrimary,
+                  }}>
+                    <div style={{ fontWeight: 600 }}>{fmtDate(p.date)}</div>
+                    <div style={{ fontWeight: 700, color: zone.color }}>{p.score} / {config.max}</div>
+                    <div style={{ fontSize: 12, color: theme.colors.textSecondary }}>{zone.label}</div>
+                    {p.crisisFlag && <div style={{ color: ZONE_COLORS.red, fontWeight: 600 }}>⚠️ Ítem 9 positivo</div>}
+                  </div>
+                );
+              }
+              return null;
+            }}
+          />
+
+          <Area
+            type="monotone"
+            dataKey="score"
+            stroke={config.accent || theme.colors.accentPrimary}
+            strokeWidth={3}
+            fill={`url(#grad-${testType})`}
+            dot={(props) => {
+              const z = getZone(config, props.payload.score);
+              return <Dot {...props} r={6} fill={z.color} stroke={theme.colors.surface} strokeWidth={2} />;
+            }}
+            activeDot={{ r: 7, strokeWidth: 2, stroke: theme.colors.surface }}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+
+      {/* Leyenda de zonas */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 6 }}>
+        {config.zones.map((z, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: theme.colors.textSecondary }}>
+            <span style={{ width: 12, height: 12, borderRadius: 2, background: z.color, display: 'inline-block' }} />
+            {z.label}
+          </div>
+        ))}
+      </div>
+
+      {/* Botón "Ver historial" (colapsable) */}
+      <button
+        onClick={() => setShowHistory(s => !s)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          marginTop: 12,
+          background: 'none',
+          border: 'none',
+          color: theme.colors.textSecondary,
+          fontSize: 13,
+          cursor: 'pointer',
+          padding: '8px 0',
+          width: '100%',
+          borderTop: `1px solid ${theme.colors.border}`,
+          justifyContent: 'center',
+        }}
+      >
+        {showHistory ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        Historial de respuestas ({sorted.length})
+      </button>
+
+      {showHistory && (
+        <div style={{ marginTop: 6, maxHeight: 160, overflowY: 'auto' }}>
+          {[...sorted].reverse().map((r, i) => {
+            const z = getZone(config, r.score);
+            return (
+              <div key={i} style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '6px 2px',
+                borderBottom: `1px solid ${theme.colors.border}`,
+                fontSize: 12,
+              }}>
+                <span style={{ color: theme.colors.textSecondary }}>{fmtDate(r.date)}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: z.color, display: 'inline-block' }} />
+                  <span style={{ fontWeight: 600 }}>{r.score}</span>
+                  <span style={{ color: theme.colors.textSecondary }}>{z.label}</span>
+                  {r.crisisFlag && <AlertTriangle size={12} color={ZONE_COLORS.red} />}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Botón "Realizar test ahora" */}
+      <Button
+        onClick={() => onNavigate(testType)}
+        style={{ marginTop: 12 }}
+      >
+        📝 Realizar test ahora
+      </Button>
+
+      {/* Próxima fecha disponible */}
+      {nextAvailable > 0 && (
+        <div style={{ marginTop: 6, fontSize: 11, color: theme.colors.textSecondary, textAlign: 'center' }}>
+          ⏳ Puedes repetir este test cada {nextAvailable} días.
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============================================================
+// HEADER
+// ============================================================
+const Header = ({ config }) => (
+  <div style={{ marginBottom: 2 }}>
+    <div style={{ fontSize: 16, fontWeight: 700, color: theme.colors.textPrimary }}>{config.label}</div>
+    <div style={{ fontSize: 12, color: theme.colors.textSecondary }}>{config.subtitle}</div>
+  </div>
+);
+
+// ============================================================
+// ESTILOS (usando theme.js)
+// ============================================================
+const cardStyle = {
+  background: theme.colors.surface,
+  borderRadius: theme.radius.card,
+  padding: '16px 18px 12px',
+  boxShadow: theme.shadow.card,
+  border: `1px solid ${theme.colors.border}`,
+};
+
+// ============================================================
+// COMPONENTE PRINCIPAL: History (conexión a Firestore)
 // ============================================================
 const History = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+  const [allResults, setAllResults] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [allResults, setAllResults] = useState({});
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -184,23 +440,18 @@ const History = () => {
           collection(db, 'testResults'),
           where('userId', '==', currentUser.uid),
           where('version', '==', 'v2'),
-          orderBy('fecha', 'asc') // Orden ascendente para gráfico
+          orderBy('fecha', 'asc')
         );
         const querySnapshot = await getDocs(q);
         const results = {};
         querySnapshot.forEach((doc) => {
           const data = doc.data();
           const testType = data.testType;
-          if (!results[testType]) {
-            results[testType] = [];
-          }
+          if (!results[testType]) results[testType] = [];
           results[testType].push({
-            fecha: data.fecha,
-            puntaje: data.puntaje,
-            formattedDate: new Date(data.fecha).toLocaleDateString('es-CL', {
-              day: '2-digit',
-              month: 'short',
-            }),
+            date: data.fecha,
+            score: data.puntaje,
+            crisisFlag: data.crisisFlag || false,
           });
         });
         setAllResults(results);
@@ -214,343 +465,63 @@ const History = () => {
     fetchHistory();
   }, [currentUser]);
 
-  if (loading) {
-    return (
-      <div style={{ padding: '40px', textAlign: 'center' }}>
-        Cargando historial...
-      </div>
-    );
-  }
+  const handleNavigate = (testType) => {
+    navigate(`/tests/${testType}`);
+  };
 
+  if (loading) {
+    return <div style={{ padding: 40, textAlign: 'center', color: theme.colors.textSecondary }}>Cargando historial...</div>;
+  }
   if (error) {
-    return (
-      <div style={{ padding: '40px', textAlign: 'center', color: 'red' }}>
-        {error}
-      </div>
-    );
+    return <div style={{ padding: 40, textAlign: 'center', color: theme.colors.red }}>{error}</div>;
   }
 
   const hasData = Object.keys(allResults).some((key) => allResults[key].length > 0);
 
   if (!hasData) {
     return (
-      <div style={{ padding: '40px', maxWidth: '600px', margin: '0 auto', textAlign: 'center' }}>
-        <h2>📊 Historial de tests</h2>
-        <p style={{ color: '#888', marginTop: '20px' }}>
+      <div style={{ maxWidth: 600, margin: '40px auto', padding: 20, textAlign: 'center' }}>
+        <h2 style={{ color: theme.colors.textPrimary }}>📊 Historial de tests</h2>
+        <p style={{ color: theme.colors.textSecondary, marginTop: 20 }}>
           No tienes registros aún. Realiza tus primeros tests para comenzar a ver tu evolución.
         </p>
-        <button
-          onClick={() => navigate('/tests')}
-          style={{
-            marginTop: '20px',
-            padding: '12px 24px',
-            background: '#6C63FF',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-          }}
-        >
+        <Button onClick={() => navigate('/tests')} style={{ marginTop: 20 }}>
           Ir a tests
-        </button>
+        </Button>
+        <Button variant="secondary" onClick={() => navigate('/dashboard')} style={{ marginTop: 12 }}>
+          ← Volver al menú
+        </Button>
       </div>
     );
   }
 
+  const testOrder = ['who5', 'phq9', 'pss10', 'gad7'];
+
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-      <h2 style={{ color: '#2d3748', marginBottom: '4px' }}>📊 Mi historial de bienestar</h2>
-      <p style={{ color: '#718096', marginBottom: '24px' }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: 20 }}>
+      <h2 style={{ color: theme.colors.textPrimary, marginBottom: 4 }}>📊 Mi historial de bienestar</h2>
+      <p style={{ color: theme.colors.textSecondary, marginBottom: 24 }}>
         Evolución de tus tests. Arriba siempre significa mejora.
       </p>
 
-      {/* Grid 2x2 para los 4 tests */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '24px',
-          marginBottom: '24px',
-        }}
-      >
-        {Object.keys(TEST_CONFIG).map((testId) => {
-          const rawData = allResults[testId] || [];
-          const config = TEST_CONFIG[testId];
-
-          // Si no hay datos, mostrar placeholder
-          if (rawData.length === 0) {
-            return (
-              <div
-                key={testId}
-                style={{
-                  background: 'white',
-                  borderRadius: '16px',
-                  padding: '20px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                  textAlign: 'center',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  minHeight: '280px',
-                }}
-              >
-                <h4 style={{ color: config.color, marginBottom: '8px' }}>
-                  {config.label}
-                </h4>
-                <p style={{ color: '#aaa', fontSize: '14px' }}>
-                  Aún no tienes registros de este test.
-                </p>
-                <button
-                  onClick={() => navigate(`/tests/${testId}`)}
-                  style={{
-                    marginTop: '12px',
-                    padding: '8px 16px',
-                    background: config.color,
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                  }}
-                >
-                  Realizar test
-                </button>
-              </div>
-            );
-          }
-
-          // Calcular promedio móvil
-          const datosConPromedio = calcularPromedioMovil(rawData, 3);
-
-          // Preparar datos para el gráfico
-          let chartData = datosConPromedio.map((item) => {
-            // Invertir visualmente si el test tiene high = malo
-            const visualScore = config.higherIsBetter
-              ? item.promedio
-              : invertirPuntaje(item.promedio, config.maxScore);
-            const rawVisualScore = config.higherIsBetter
-              ? item.puntaje
-              : invertirPuntaje(item.puntaje, config.maxScore);
-
-            return {
-              fecha: item.formattedDate,
-              fechaRaw: item.fecha,
-              promedio: visualScore,
-              puntaje: rawVisualScore,
-              // Guardar el puntaje real para las bandas
-              realScore: item.puntaje,
-            };
-          });
-
-          // Obtener la banda para el último punto
-          const lastRealScore = rawData[rawData.length - 1].puntaje;
-          const lastBand = getBandForScore(lastRealScore, config.bands);
-
-          // Resumen
-          const resumen = generarResumen(datosConPromedio, testId, config);
-
-          return (
-            <div
-              key={testId}
-              style={{
-                background: 'white',
-                borderRadius: '16px',
-                padding: '20px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                minHeight: '300px',
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-            >
-              <h4 style={{ color: config.color, marginBottom: '4px' }}>
-                {config.label}
-              </h4>
-
-              {/* Gráfico con recharts */}
-              <div style={{ width: '100%', height: 160, marginTop: '8px', flexShrink: 0 }}>
-                <ResponsiveContainer>
-                  <LineChart
-                    data={chartData}
-                    margin={{ top: 10, right: 10, left: 0, bottom: 10 }}
-                  >
-                    {/* Franjas de fondo */}
-                    {config.bands.map((band, idx) => {
-                      // Para tests donde high es malo, invertir el rango visual
-                      let minVisual = config.higherIsBetter ? band.min : config.maxScore - band.max;
-                      let maxVisual = config.higherIsBetter ? band.max : config.maxScore - band.min;
-                      // Asegurar orden
-                      if (minVisual > maxVisual) {
-                        [minVisual, maxVisual] = [maxVisual, minVisual];
-                      }
-                      return (
-                        <ReferenceArea
-                          key={idx}
-                          y1={minVisual}
-                          y2={maxVisual}
-                          fill={band.color}
-                          fillOpacity={0.3}
-                          stroke="none"
-                        />
-                      );
-                    })}
-
-                    {/* Ejes */}
-                    <XAxis
-                      dataKey="fecha"
-                      tick={{ fontSize: 10, fill: '#888' }}
-                      axisLine={false}
-                      tickLine={false}
-                      interval="preserveStartEnd"
-                    />
-                    <YAxis
-                      domain={[0, config.maxScore]}
-                      tick={false}
-                      axisLine={false}
-                      tickLine={false}
-                      width={0}
-                    />
-
-                    {/* Tooltip personalizado */}
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const data = payload[0].payload;
-                          const realScore = rawData.find(
-                            (d) => d.formattedDate === data.fecha
-                          )?.puntaje;
-                          const band = getBandForScore(realScore, config.bands);
-                          return (
-                            <div
-                              style={{
-                                background: 'white',
-                                padding: '8px 12px',
-                                borderRadius: '8px',
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                                border: `2px solid ${band.color}`,
-                              }}
-                            >
-                              <div style={{ fontWeight: 'bold', fontSize: '14px' }}>
-                                {data.fecha}
-                              </div>
-                              <div style={{ fontSize: '12px', color: '#555' }}>
-                                {band.label}
-                              </div>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-
-                    {/* Línea de promedio móvil (principal) */}
-                    <Line
-                      type="monotone"
-                      dataKey="promedio"
-                      stroke={config.color}
-                      strokeWidth={3}
-                      dot={{
-                        r: 5,
-                        fill: config.color,
-                        stroke: 'white',
-                        strokeWidth: 2,
-                      }}
-                      activeDot={{ r: 7 }}
-                      name="Promedio"
-                    />
-
-                    {/* Puntos individuales (tenues) */}
-                    <Line
-                      type="monotone"
-                      dataKey="puntaje"
-                      stroke={config.color}
-                      strokeWidth={1}
-                      strokeOpacity={0.3}
-                      dot={{
-                        r: 3,
-                        fill: config.color,
-                        stroke: 'white',
-                        strokeWidth: 1,
-                        opacity: 0.5,
-                      }}
-                      activeDot={false}
-                      name="Mediciones individuales"
-                      legendType="none"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Resumen textual */}
-              <div
-                style={{
-                  marginTop: '8px',
-                  padding: '8px 12px',
-                  background: '#f9f9ff',
-                  borderRadius: '8px',
-                  fontSize: '13px',
-                  color: '#333',
-                  borderLeft: `4px solid ${config.color}`,
-                }}
-              >
-                {resumen}
-              </div>
-
-              {/* Indicador de última banda */}
-              <div
-                style={{
-                  marginTop: '6px',
-                  fontSize: '11px',
-                  color: '#888',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
-                <span>Última zona:</span>
-                <span
-                  style={{
-                    display: 'inline-block',
-                    width: '12px',
-                    height: '12px',
-                    borderRadius: '4px',
-                    background: lastBand.color,
-                  }}
-                />
-                <span>{lastBand.label}</span>
-              </div>
-            </div>
-          );
-        })}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+        gap: 20,
+      }}>
+        {testOrder.map((testId) => (
+          <TestHistoryChart
+            key={testId}
+            testType={testId}
+            data={allResults[testId] || []}
+            onNavigate={handleNavigate}
+          />
+        ))}
       </div>
 
-      {/* Botón Volver al menú */}
-      <button
-        onClick={() => navigate('/dashboard')}
-        style={{
-          padding: '12px',
-          background: '#e2e8f0',
-          color: '#4a5568',
-          border: 'none',
-          borderRadius: '12px',
-          cursor: 'pointer',
-          width: '100%',
-          fontSize: '16px',
-          fontWeight: '600',
-          transition: 'all 0.2s',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '8px',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = '#cbd5e0';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = '#e2e8f0';
-        }}
-      >
+      <Button variant="secondary" onClick={() => navigate('/dashboard')} style={{ marginTop: 24 }}>
         ← Volver al menú
-      </button>
+      </Button>
     </div>
   );
 };

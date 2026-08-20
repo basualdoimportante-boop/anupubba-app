@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { collection, getDocs, addDoc, query, where, orderBy } from 'firebase/firestore';
+import React, { useState, useEffect } from 'react';
+import { collection, getDocs, addDoc, query, where, orderBy, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { theme } from '../theme';
 import Button from './Button';
 import Card from './Card';
+import { actualizarRacha, completarMision } from '../services/gamificationService';
 
 const MeditacionesPage = () => {
   const [meditaciones, setMeditaciones] = useState([]);
@@ -19,27 +20,22 @@ const MeditacionesPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 1. Obtener meditaciones
         const medSnap = await getDocs(collection(db, 'meditaciones'));
         const medData = [];
         medSnap.forEach((doc) => {
           const data = doc.data();
-          // 🔥 USAMOS LOS CAMPOS REALES: fileUrl y title
-          const med = {
-            id: doc.id,
-            title: data.title || 'Sin título',
-            url: data.fileUrl || '', // ← campo real en Firestore
-            description: data.description || '',
-            order: data.order || 0,
-          };
-          medData.push(med);
-          console.log('📦 Meditación cargada:', med.title, 'URL:', med.url);
+          console.log('📦 Meditación cargada:', data.title, 'URL:', data.fileUrl);
+          medData.push({ 
+            id: doc.id, 
+            ...data,
+            titulo: data.title || 'Sin título',
+            url: data.fileUrl || ''
+          });
         });
-        // Ordenar por order
-        medData.sort((a, b) => a.order - b.order);
+        // Ordenar por order si existe
+        medData.sort((a, b) => (a.order || 0) - (b.order || 0));
         setMeditaciones(medData);
 
-        // 2. Obtener registros del usuario
         if (currentUser) {
           const q = query(
             collection(db, 'meditacionesRegistro'),
@@ -51,7 +47,6 @@ const MeditacionesPage = () => {
           regSnap.forEach((doc) => regData.push({ id: doc.id, ...doc.data() }));
           setRegistros(regData);
 
-          // Calcular estadísticas
           const ahora = new Date();
           const hoyInicio = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
           const semanaInicio = new Date(ahora);
@@ -77,14 +72,13 @@ const MeditacionesPage = () => {
     fetchData();
   }, [currentUser]);
 
-  // Registrar sesión automáticamente al reproducir
-  const handlePlay = async (meditacionId) => {
-    if (!currentUser) {
-      console.warn('Usuario no autenticado');
-      return;
-    }
-    if (sesionRegistrada[meditacionId]) {
-      console.log('Sesión ya registrada');
+  const handlePlay = async (meditacionId, url) => {
+    if (!currentUser) return;
+    if (sesionRegistrada[meditacionId]) return;
+
+    if (!url || url === 'undefined' || url === '') {
+      console.error('❌ URL de audio no válida para meditación:', meditacionId);
+      alert('Esta meditación no tiene una URL configurada. Contacta al administrador.');
       return;
     }
 
@@ -96,7 +90,17 @@ const MeditacionesPage = () => {
       });
       setSesionRegistrada((prev) => ({ ...prev, [meditacionId]: true }));
 
-      // Recargar registros y estadísticas
+      await actualizarRacha(currentUser.uid, 'meditacion');
+
+      const rachaDoc = await getDoc(doc(db, 'rachas', currentUser.uid));
+      if (rachaDoc.exists()) {
+        const data = rachaDoc.data();
+        if (data.meditacion && data.meditacion.diasConsecutivos >= 3) {
+          await completarMision(currentUser.uid, 'meditacion_3_dias');
+        }
+      }
+
+      // Recargar datos
       const q = query(
         collection(db, 'meditacionesRegistro'),
         where('userId', '==', currentUser.uid),
@@ -124,7 +128,7 @@ const MeditacionesPage = () => {
 
       console.log('🧘 Sesión registrada automáticamente');
     } catch (err) {
-      console.error('Error al registrar sesión:', err);
+      console.error('Error al registrar sesión automática:', err);
     }
   };
 
@@ -141,7 +145,7 @@ const MeditacionesPage = () => {
     <div style={{ maxWidth: '800px', margin: `${theme.space[8]} auto`, padding: theme.space[4] }}>
       <h2 style={{ color: theme.colors.textPrimary, fontSize: theme.font.size.xxl, fontWeight: theme.font.weight.emphasis, marginBottom: theme.space[2] }}>🪷 Meditaciones</h2>
       <p style={{ color: theme.colors.textSecondary, marginBottom: theme.space[6] }}>
-        Escucha y registra tus sesiones (se registran automáticamente al reproducir).
+        Escucha y registra tus sesiones de meditación (se registran automáticamente al reproducir).
       </p>
 
       {currentUser && (
@@ -149,15 +153,21 @@ const MeditacionesPage = () => {
           <h3 style={{ marginBottom: theme.space[3], color: theme.colors.textPrimary }}>📊 Tu práctica</h3>
           <div style={{ display: 'flex', gap: theme.space[4], flexWrap: 'wrap' }}>
             <div>
-              <div style={{ fontSize: theme.font.size.xl, fontWeight: theme.font.weight.emphasis, color: theme.colors.accentPrimary }}>{estadisticas.hoy}</div>
+              <div style={{ fontSize: theme.font.size.xl, fontWeight: theme.font.weight.emphasis, color: theme.colors.accentPrimary }}>
+                {estadisticas.hoy}
+              </div>
               <div style={{ fontSize: theme.font.size.sm, color: theme.colors.textSecondary }}>Hoy</div>
             </div>
             <div>
-              <div style={{ fontSize: theme.font.size.xl, fontWeight: theme.font.weight.emphasis, color: theme.colors.accentSecondary }}>{estadisticas.semana}</div>
+              <div style={{ fontSize: theme.font.size.xl, fontWeight: theme.font.weight.emphasis, color: theme.colors.accentSecondary }}>
+                {estadisticas.semana}
+              </div>
               <div style={{ fontSize: theme.font.size.sm, color: theme.colors.textSecondary }}>Esta semana</div>
             </div>
             <div>
-              <div style={{ fontSize: theme.font.size.xl, fontWeight: theme.font.weight.emphasis, color: theme.colors.accentCalm }}>{estadisticas.mes}</div>
+              <div style={{ fontSize: theme.font.size.xl, fontWeight: theme.font.weight.emphasis, color: theme.colors.accentCalm }}>
+                {estadisticas.mes}
+              </div>
               <div style={{ fontSize: theme.font.size.sm, color: theme.colors.textSecondary }}>Este mes</div>
             </div>
           </div>
@@ -183,20 +193,26 @@ const MeditacionesPage = () => {
         ) : (
           meditaciones.map((med) => (
             <Card key={med.id}>
-              <h3 style={{ color: theme.colors.textPrimary, marginBottom: theme.space[1] }}>{med.title}</h3>
-              <p style={{ color: theme.colors.textSecondary, marginBottom: theme.space[3] }}>{med.description}</p>
-              <audio
-                controls
-                src={med.url}
-                style={{ width: '100%', borderRadius: theme.radius.button }}
-                onPlay={() => handlePlay(med.id)}
-                onError={(e) => {
-                  console.error('❌ Error al cargar audio:', med.url, e);
-                  alert(`No se pudo cargar el audio: ${med.title}. Verifica la URL en Firebase.`);
-                }}
-              >
-                Tu navegador no soporta el reproductor de audio.
-              </audio>
+              <h3 style={{ color: theme.colors.textPrimary, marginBottom: theme.space[1] }}>{med.titulo || 'Sin título'}</h3>
+              <p style={{ color: theme.colors.textSecondary, marginBottom: theme.space[3] }}>
+                {med.descripcion || 'Meditación guiada'}
+              </p>
+              {med.url && med.url !== '' ? (
+                <audio
+                  controls
+                  src={med.url}
+                  style={{ width: '100%', borderRadius: theme.radius.button }}
+                  onPlay={() => handlePlay(med.id, med.url)}
+                  onError={(e) => {
+                    console.error('❌ Error al cargar audio:', med.url, e);
+                    alert(`No se pudo cargar el audio. URL: ${med.url}`);
+                  }}
+                >
+                  Tu navegador no soporta el reproductor de audio.
+                </audio>
+              ) : (
+                <p style={{ color: 'red' }}>⚠️ Este audio no tiene URL configurada.</p>
+              )}
               {sesionRegistrada[med.id] && (
                 <div style={{ marginTop: theme.space[2], fontSize: theme.font.size.sm, color: theme.colors.accentCalm }}>
                   ✅ Sesión registrada

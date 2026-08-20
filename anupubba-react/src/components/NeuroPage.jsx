@@ -10,7 +10,6 @@ const NeuroPage = () => {
   const [modules, setModules] = useState([]);
   const [progress, setProgress] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [permisosError, setPermisosError] = useState(false);
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
@@ -22,7 +21,7 @@ const NeuroPage = () => {
       }
 
       try {
-        // 1. Módulos (siempre se cargan)
+        // 1. Módulos
         const modulesSnap = await getDocs(collection(db, 'neuroModules'));
         const modulesData = [];
         modulesSnap.forEach((doc) => {
@@ -31,7 +30,7 @@ const NeuroPage = () => {
         modulesData.sort((a, b) => a.order - b.order);
         setModules(modulesData);
 
-        // 2. Progreso (si falla, no interrumpe)
+        // 2. Progreso (lectura directa por ID)
         try {
           const docRef = doc(db, 'neuroProgress', currentUser.uid);
           const docSnap = await getDoc(docRef);
@@ -41,9 +40,14 @@ const NeuroPage = () => {
             setProgress(null);
           }
         } catch (err) {
-          console.warn('⚠️ No se pudo leer progreso (permisos o documento vacío):', err);
-          setPermisosError(true);
-          setProgress(null); // Asumimos que no hay progreso
+          // Si el documento no existe, es normal (sin progreso)
+          if (err.code === 'permission-denied' || err.message.includes('Missing or insufficient permissions')) {
+            console.log('ℹ️ No hay progreso guardado para este usuario (documento vacío).');
+            setProgress(null);
+          } else {
+            console.warn('⚠️ Error al leer progreso:', err);
+            setProgress(null);
+          }
         }
         setLoading(false);
       } catch (err) {
@@ -55,9 +59,9 @@ const NeuroPage = () => {
   }, [currentUser]);
 
   const isChapterLocked = (index) => {
-    if (index === 0) return false; // SIEMPRE DESBLOQUEADO
+    if (index === 0) return false;
     const prevChapterId = modules[index - 1]?.id;
-    if (!progress) return true; // Sin progreso, bloqueado
+    if (!progress) return true;
     return !(progress[prevChapterId] && progress[prevChapterId].passed === true);
   };
 
@@ -65,31 +69,10 @@ const NeuroPage = () => {
     return <div style={{ padding: theme.space[8], textAlign: 'center' }}>Cargando módulos...</div>;
   }
 
-  const pageStyle = {
-    maxWidth: '900px',
-    margin: `${theme.space[8]} auto`,
-    padding: theme.space[4],
-  };
-
-  const titleStyle = {
-    color: theme.colors.textPrimary,
-    fontSize: theme.font.size.xxl,
-    fontWeight: theme.font.weight.emphasis,
-    marginBottom: theme.space[2],
-  };
-
   return (
-    <div style={pageStyle}>
-      <h2 style={titleStyle}>🧠 Neurociencias</h2>
-      <p style={{ color: theme.colors.textSecondary, marginBottom: theme.space[6] }}>
-        Descubre cómo funciona tu cerebro y cómo la meditación lo transforma.
-      </p>
-
-      {permisosError && (
-        <div style={{ background: '#fff3cd', color: '#856404', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
-          ⚠️ No se pudo cargar tu progreso. El primer módulo está disponible; los demás se desbloquearán al aprobar el anterior.
-        </div>
-      )}
+    <div style={{ maxWidth: '900px', margin: `${theme.space[8]} auto`, padding: theme.space[4] }}>
+      <h2 style={{ color: theme.colors.textPrimary, fontSize: theme.font.size.xxl, fontWeight: theme.font.weight.emphasis, marginBottom: theme.space[2] }}>🧠 Neurociencias</h2>
+      <p style={{ color: theme.colors.textSecondary, marginBottom: theme.space[6] }}>Descubre cómo funciona tu cerebro y cómo la meditación lo transforma.</p>
 
       {modules.length === 0 ? (
         <p>No hay módulos disponibles.</p>
@@ -98,17 +81,7 @@ const NeuroPage = () => {
           const locked = isChapterLocked(index);
           const isCompleted = progress && progress[mod.id] && progress[mod.id].passed === true;
           return (
-            <div
-              key={mod.id}
-              style={{
-                background: theme.colors.surface,
-                borderRadius: theme.radius.card,
-                padding: theme.space[4],
-                marginBottom: theme.space[4],
-                boxShadow: theme.shadow.card,
-                opacity: locked ? 0.6 : 1,
-              }}
-            >
+            <div key={mod.id} style={{ background: theme.colors.surface, borderRadius: theme.radius.card, padding: theme.space[4], marginBottom: theme.space[4], boxShadow: theme.shadow.card, opacity: locked ? 0.6 : 1 }}>
               <h3 style={{ color: theme.colors.textPrimary, display: 'flex', alignItems: 'center', gap: theme.space[2] }}>
                 <span>{mod.icon}</span> {mod.title}
               </h3>
@@ -123,10 +96,7 @@ const NeuroPage = () => {
                   {isCompleted ? '✅ Completado' : locked ? '🔒 Bloqueado' : '📖 Disponible'}
                 </span>
                 {!locked && (
-                  <Button
-                    onClick={() => navigate(`/neuro/desafio/${mod.id}`)}
-                    style={{ width: 'auto' }}
-                  >
+                  <Button onClick={() => navigate(`/neuro/desafio/${mod.id}`)} style={{ width: 'auto' }}>
                     {isCompleted ? 'Repetir desafío' : 'Comenzar'}
                   </Button>
                 )}
@@ -135,7 +105,6 @@ const NeuroPage = () => {
           );
         })
       )}
-
       <Button variant="secondary" onClick={() => navigate('/dashboard')} style={{ marginTop: theme.space[4] }}>
         ← Volver al menú
       </Button>

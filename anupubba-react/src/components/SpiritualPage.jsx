@@ -10,7 +10,6 @@ const SpiritualPage = () => {
   const [modules, setModules] = useState([]);
   const [progress, setProgress] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [permisosError, setPermisosError] = useState(false);
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
@@ -39,9 +38,13 @@ const SpiritualPage = () => {
             setProgress(null);
           }
         } catch (err) {
-          console.warn('⚠️ No se pudo leer progreso (permisos o documento vacío):', err);
-          setPermisosError(true);
-          setProgress(null);
+          if (err.code === 'permission-denied' || err.message.includes('Missing or insufficient permissions')) {
+            console.log('ℹ️ No hay progreso guardado para este usuario (documento vacío).');
+            setProgress(null);
+          } else {
+            console.warn('⚠️ Error al leer progreso:', err);
+            setProgress(null);
+          }
         }
         setLoading(false);
       } catch (err) {
@@ -69,12 +72,6 @@ const SpiritualPage = () => {
     <div style={{ maxWidth: '900px', margin: `${theme.space[8]} auto`, padding: theme.space[4] }}>
       <h2 style={{ color: theme.colors.textPrimary, fontSize: theme.font.size.xxl, fontWeight: theme.font.weight.emphasis, marginBottom: theme.space[2] }}>🕉️ Caminos Espirituales</h2>
       <p style={{ color: theme.colors.textSecondary, marginBottom: theme.space[6] }}>Explora las tradiciones filosóficas y espirituales.</p>
-
-      {permisosError && (
-        <div style={{ background: '#fff3cd', color: '#856404', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
-          ⚠️ No se pudo cargar tu progreso. El primer módulo está disponible; los demás se desbloquearán al aprobar el anterior.
-        </div>
-      )}
 
       {modules.length === 0 ? (
         <p>No hay módulos disponibles.</p>

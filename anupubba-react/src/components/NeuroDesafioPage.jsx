@@ -5,6 +5,7 @@ import { db } from '../firebaseConfig';
 import { useAuth } from '../context/AuthContext';
 import { theme } from '../theme';
 import Button from './Button';
+import { actualizarRacha, completarMision } from '../services/gamificationService';
 
 const NeuroDesafioPage = () => {
   const { chapterId } = useParams();
@@ -37,7 +38,8 @@ const NeuroDesafioPage = () => {
         const querySnapshot = await getDocs(q);
         const allQuestions = [];
         querySnapshot.forEach((doc) => {
-          allQuestions.push({ id: doc.id, ...doc.data() });
+          const data = doc.data();
+          allQuestions.push({ id: doc.id, ...data, correctAnswer: data.correct });
         });
         if (allQuestions.length === 0) {
           setError('No hay preguntas para este capítulo');
@@ -93,12 +95,28 @@ const NeuroDesafioPage = () => {
       const docRef = doc(db, 'neuroProgress', currentUser.uid);
       const docSnap = await getDoc(docRef);
       let data = docSnap.exists() ? docSnap.data() : { userId: currentUser.uid };
-      // Guardar el progreso como un objeto con clave chapterId
       data[chapterId] = { passed: true, score: score, fecha: new Date().toISOString() };
       await setDoc(docRef, data, { merge: true });
       console.log('✅ Progreso guardado en neuroProgress');
+
+      // GAMIFICACIÓN
+      await actualizarRacha(currentUser.uid, 'aprendizaje');
+      const progressData = data;
+      const completados = Object.keys(progressData).filter(key => key !== 'userId' && progressData[key].passed === true).length;
+      if (completados === 1) {
+        await completarMision(currentUser.uid, 'primer_modulo');
+      }
+      if (completados >= 3) {
+        await completarMision(currentUser.uid, 'tres_modulos');
+      }
+
+      // Forzar recarga al volver al Dashboard
+      navigate('/dashboard');
+      window.location.reload();
+
     } catch (err) {
       console.error('Error al guardar progreso:', err);
+      alert('Error al guardar el progreso. Intenta de nuevo.');
     }
   };
 

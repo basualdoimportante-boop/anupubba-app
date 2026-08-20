@@ -5,6 +5,7 @@ import { db } from '../firebaseConfig';
 import { useAuth } from '../context/AuthContext';
 import { theme } from '../theme';
 import Button from './Button';
+import { actualizarRacha, completarMision } from '../services/gamificationService';
 
 const SpiritualDesafioPage = () => {
   const { chapterId } = useParams();
@@ -96,6 +97,18 @@ const SpiritualDesafioPage = () => {
       data[chapterId] = { passed: true, score: score, fecha: new Date().toISOString() };
       await setDoc(docRef, data, { merge: true });
       console.log('✅ Progreso guardado en caminosProgress');
+
+      // 🏅 GAMIFICACIÓN
+      await actualizarRacha(currentUser.uid, 'aprendizaje');
+      const progressData = data;
+      const completados = Object.keys(progressData).filter(key => key !== 'userId' && progressData[key].passed === true).length;
+      if (completados === 1) {
+        await completarMision(currentUser.uid, 'primer_modulo');
+      }
+      if (completados >= 3) {
+        await completarMision(currentUser.uid, 'tres_modulos');
+      }
+
     } catch (err) {
       console.error('Error al guardar progreso:', err);
     }
